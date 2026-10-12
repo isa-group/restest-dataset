@@ -105,13 +105,13 @@ unknown API, and only its document — and the way to measure what RESTest does 
 RESTest calls every operation it can, with the credentials it holds, and some operations take
 those credentials away: a `logout` ends the session a login opened, a password change or a deleted
 account leaves the key refused, a reboot stops the server. Every request after that is refused or
-unanswered, and the rest of the run tests nothing. Found in the stored runs of 12 October 2026:
+unanswered, and the rest of the run tests nothing. Three such cases are known:
 
-| API | What RESTest did | 2XX in 20 s, before → after leaving it alone |
-|---|---|---|
-| testing-system | `POST /auth/logout` with its token | 5 → 6,487 |
-| commafeed | saved the user it signed in as, with a new password, by the id an earlier reply showed it | 33 → 10,336 |
-| traccar | `POST /server/reboot` | 191 → 3,316 |
+| API | What RESTest did |
+|---|---|
+| testing-system, joinus | called `logout` with the session it was given |
+| commafeed | saved the user it signed in as, with a new password, by the id an earlier reply showed it |
+| traccar | called `POST /server/reboot` |
 
 So the operations in `leaveAlone` are kept out of every run, through a plan that is RESTest's own
 with `operations.only` added (`plan.yaml` in the run's folder; `left-alone.txt` says which, and
@@ -119,6 +119,12 @@ why). The importer puts there the operations whose path says log out or sign out
 credentials need a login, and the ones listed in `LEAVE_ALONE` in `tools/import-wfd.py`, found by
 reading stored runs. `--all-operations` lets RESTest call them. A plan given after `--` takes
 precedence, and `left-alone.txt` then says nothing was left alone.
+
+## What this repository holds
+
+The dataset and the scripts that run it, nothing else. What a run produces — reports, logs, stored
+requests — goes into `out/` unless `--out` says otherwise, and `out/` is ignored by git: results
+are never committed here.
 
 ## Suites
 
