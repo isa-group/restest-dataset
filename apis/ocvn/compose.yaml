@@ -23,7 +23,7 @@ x-dataset:
     file: auth.yaml
     user: ADMIN
     server: null
-    leaveAlone: []
+  leaveAlone: []
   coverage:
     kind: jacoco-tcpserver
     port: 6300

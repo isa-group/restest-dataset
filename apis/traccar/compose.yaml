@@ -23,6 +23,13 @@ x-dataset:
     file: auth.yaml
     user: admin
     server: null
+  leaveAlone:
+    - operation: postServerReboot
+      why: stops the server
+    - operation: putUsersId
+      why: can change the password of the user RESTest signs in as
+    - operation: deleteUsersId
+      why: can delete the user RESTest signs in as
   coverage:
     kind: jacoco-tcpserver
     port: 6300

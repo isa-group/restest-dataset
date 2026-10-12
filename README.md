@@ -9,7 +9,8 @@ with the OpenAPI document RESTest is given, pinned images so that the API under 
 next month, and the credentials it needs when it has any. A small script starts an API, waits until
 it answers, runs RESTest against it, and removes it again so that every run starts from scratch.
 
-The first 52 APIs come from the [Web Fuzzing Dataset](#acknowledgements). More will be added as they
+The first 52 APIs come from the [Web Fuzzing Dataset](#acknowledgements). Every one of them was
+started and tested for 20 seconds with RESTest 2.1.1-SNAPSHOT on 12 October 2026, on Apple silicon. More will be added as they
 are found, from other collections and from open-source projects directly.
 
 ## Quick start
@@ -71,10 +72,11 @@ copies of one, can run side by side.
 | `document` | The file in the folder RESTest is given |
 | `basePath` | The path of the first address the document declares, where its operations live. It is handed to RESTest as part of `--url`, so that which address RESTest picks from the document never decides where the requests go |
 | `documentServedAt` | Where the running API serves its own document, when it does |
-| `ready` | A path that answers 2XX once the API is ready. When it is null, any answer but 502 or 503 means ready |
-| `auth` | The credentials file, the user taken from it (the first, unless another is named), and, when the login goes to a server of its own rather than to the API, which compose service that is and its port. `leaveAlone` names the operations that would end a session a login opened, such as `logout` |
+| `ready` | A path that answers once the API is ready: 2XX, or 401 or 403 when the API keeps it for signed-in users. When it is null, any answer but 502 or 503 means ready |
+| `auth` | The credentials file, the user taken from it (the first, unless another is named), and, when the login goes to a server of its own rather than to the API, which compose service that is and its port. `refused` says why the credentials are not handed over, when the API turns them down |
+| `leaveAlone` | Operations kept out of every run, each with why: called with the credentials RESTest holds, each leaves the rest of the run unable to test anything |
 | `coverage` | How code coverage can be read: the WFD images run a JaCoCo agent as a TCP server on port 6300, published beside the API |
-| `platforms` | The processors the API's image is published for |
+| `platforms` | The processors the API's image is published for. An image published for `linux/amd64` alone is run emulated on Apple silicon |
 
 ## Credentials
 
@@ -91,19 +93,32 @@ copies of one, can run side by side.
 
 A login is retried for up to three minutes while the server that answers it is still starting. One
 that fails is written in `credentials.txt` and on the screen, and that run goes on without
-credentials.
-
-A session can be ended by the API itself: RESTest calls `logout` like any other operation, and every
-request after it is refused, since RESTest does not log in again. So when a login opened the
-session, the operations in `leaveAlone` are kept out of the run, through a plan that is RESTest's
-own with `operations.only` added (`plan.yaml` in the run's folder). The importer fills `leaveAlone`
-with the operations whose path says log out or sign out. A plan given after `--` takes precedence,
-and `credentials.txt` then says the session was not protected. RESTest is given one user and does not renew a token, so a token that expires during a
+credentials. RESTest is given one user and does not renew a token, so a token that expires during a
 long run leaves the rest of it refused.
 
-`--no-auth` gives RESTest the document and nothing else. That is RESTest's design target — an
+`--no-auth` gives RESTest the document and no credentials. That is RESTest's design target — an
 unknown API, and only its document — and the way to measure what RESTest does on its own.
 `./dataset up <api>` prints the `--auth` options for a run by hand.
+
+## Operations left alone
+
+RESTest calls every operation it can, with the credentials it holds, and some operations take
+those credentials away: a `logout` ends the session a login opened, a password change or a deleted
+account leaves the key refused, a reboot stops the server. Every request after that is refused or
+unanswered, and the rest of the run tests nothing. Found in the stored runs of 12 October 2026:
+
+| API | What RESTest did | 2XX in 20 s, before → after leaving it alone |
+|---|---|---|
+| testing-system | `POST /auth/logout` with its token | 5 → 6,487 |
+| commafeed | saved the user it signed in as, with a new password, by the id an earlier reply showed it | 33 → 10,336 |
+| traccar | `POST /server/reboot` | 191 → 3,316 |
+
+So the operations in `leaveAlone` are kept out of every run, through a plan that is RESTest's own
+with `operations.only` added (`plan.yaml` in the run's folder; `left-alone.txt` says which, and
+why). The importer puts there the operations whose path says log out or sign out when the API's
+credentials need a login, and the ones listed in `LEAVE_ALONE` in `tools/import-wfd.py`, found by
+reading stored runs. `--all-operations` lets RESTest call them. A plan given after `--` takes
+precedence, and `left-alone.txt` then says nothing was left alone.
 
 ## Suites
 

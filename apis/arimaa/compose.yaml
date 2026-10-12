@@ -23,6 +23,7 @@ x-dataset:
     file: auth.yaml
     user: wfd_admin1
     server: null
+  leaveAlone: []
   coverage:
     kind: jacoco-tcpserver
     port: 6300
@@ -44,9 +45,8 @@ services:
     image: mysql:9.5.0@sha256:57c892ddeb17e6c7dddf219914db017b2cf3e2797806a75424444b83622cc8ef
     volumes:
       - type: bind
-        source: ../jdk_21_maven/cs/rest/arimaa/Database/mysql
+        source: ./files/mysql
         target: /docker-entrypoint-initdb.d
-        bind: {}
   mongodb:
     healthcheck:
       test:

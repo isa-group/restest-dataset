@@ -25,7 +25,7 @@ x-dataset:
     server:
       service: keycloak
       port: 8080
-    leaveAlone: []
+  leaveAlone: []
   coverage:
     kind: jacoco-tcpserver
     port: 6300

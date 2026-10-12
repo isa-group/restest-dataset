@@ -4,7 +4,7 @@
   ./dataset list [--suite NAME]
   ./dataset up <api> [--timeout SECONDS]          start it, wait until it answers, print its address
   ./dataset down <api>                            stop it and throw its data away
-  ./dataset run <api|suite:NAME>... --restest CMD [--budget 60s] [--runs N] [--out DIR] [--no-auth]
+  ./dataset run <api|suite:NAME>... --restest CMD [--budget 60s] [--runs N] [--out DIR] [--no-auth] [--all-operations]
                 [-- <more options for restest run>]
   ./dataset summary <DIR>                         one line per run, from each report.json
 
@@ -122,7 +122,8 @@ def up(api, timeout):
     deadline = time.monotonic() + timeout
     while True:
         status = status_of(base + (ready or "/"))
-        if (ready and status is not None and 200 <= status < 300) or \
+        # 401 and 403 are an answer too: the API is up, and keeps that path for signed-in users.
+        if (ready and status is not None and (200 <= status < 300 or status in (401, 403))) or \
                 (not ready and status is not None and status not in (502, 503)):
             break
         if time.monotonic() > deadline:
@@ -158,6 +159,9 @@ def credentials(api, entry, base):
         out = subprocess.run([str(setup)], check=True, capture_output=True, text=True, env=env).stdout
         values = [line.strip() for line in out.splitlines() if line.strip()]
         return values, f"made by setup: {', '.join(where(v) for v in values)}"
+    refused = (entry.get("auth") or {}).get("refused")
+    if refused:
+        return [], f"none: the API refuses the credentials in its file: {refused}"
     user = auth_user(api, entry)
     if user is None:
         return [], "none"
@@ -186,6 +190,8 @@ def credentials_kind(api, entry):
     """How the API's credentials are obtained, for the list and the catalogue."""
     if (APIS / api / "setup").is_file():
         return "made by `setup`"
+    if (entry.get("auth") or {}).get("refused"):
+        return "refused by the API, not handed over"
     user = auth_user(api, entry)
     if user is None:
         return ""
@@ -378,6 +384,7 @@ def run(args, extra):
     (out / "campaign.json").write_text(json.dumps({
         "started": datetime.now().astimezone().isoformat(timespec="seconds"),
         "restest": restest, "budget": args.budget, "runs": args.runs, "auth": args.auth,
+        "allOperations": args.all_operations,
         "extra": extra, "apis": apis,
         "dataset": subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True,
                                   text=True).stdout.strip() or None,
@@ -404,17 +411,21 @@ def run(args, extra):
                         options = [o for value in values for o in ("--auth", value)]
                     except AuthFailed as error:
                         how = f"FAILED, run without credentials: {error}"
-                leave_alone = (entry.get("auth") or {}).get("leaveAlone") or []
-                if options and leave_alone:
+                (target / "credentials.txt").write_text(how + "\n", encoding="utf-8")
+                leave_alone = [e["operation"] for e in entry.get("leaveAlone") or []]
+                left = "none"
+                if leave_alone and not args.all_operations:
                     if "--campaign" in extra:
-                        how += f"; NOT left alone, --campaign was given: {', '.join(leave_alone)}"
+                        left = f"NONE, --campaign was given, so RESTest may call {', '.join(leave_alone)}"
                     else:
                         plan = target / "plan.yaml"
                         plan.write_text(plan_without(restest, APIS / api / entry["document"], leave_alone),
                                         encoding="utf-8")
                         options += ["--campaign", str(plan)]
-                        how += f"; left alone, so the session lasts: {', '.join(leave_alone)}"
-                (target / "credentials.txt").write_text(how + "\n", encoding="utf-8")
+                        left = "; ".join(f"{e['operation']} ({e['why']})" for e in entry["leaveAlone"])
+                (target / "left-alone.txt").write_text(left + "\n", encoding="utf-8")
+                if left != "none":
+                    print(f"   left alone: {left}", flush=True)
                 print(f"   credentials: {how}", flush=True)
                 document = APIS / api / entry["document"]
                 url = base + (entry.get("basePath") or "")
@@ -450,7 +461,7 @@ def plan_without(restest, document, leave_alone):
                 if name not in leave_alone and f"{method.upper()} {path}" not in leave_alone:
                     names.append(name)
     return (_default_plans[key].rstrip() + "\n\n# Added by ./dataset: every operation but "
-            + ", ".join(leave_alone) + ", which would end the session RESTest was given.\n"
+            + ", ".join(leave_alone) + ", which x-dataset.leaveAlone keeps out of every run.\n"
             + "operations:\n  only: " + json.dumps(names) + "\n")
 
 
@@ -550,6 +561,8 @@ def main():
     p.add_argument("--timeout", type=int, default=600, help="seconds an API is given to start")
     p.add_argument("--no-auth", dest="auth", action="store_false",
                    help="give RESTest no credentials, only the document")
+    p.add_argument("--all-operations", action="store_true",
+                   help="let RESTest call the operations x-dataset.leaveAlone keeps out")
 
     p = commands.add_parser("summary", help="one line per run, from each report.json")
     p.add_argument("out")

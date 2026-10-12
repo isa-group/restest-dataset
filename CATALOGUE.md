@@ -34,7 +34,7 @@ Every API in the dataset, written by `./dataset list --markdown`. Do not edit by
 | [`pay-publicapi`](apis/pay-publicapi/compose.yaml) | Payments Public API | MIT | wfd | <https://github.com/alphagov/pay-publicapi> | fixed |
 | [`person-controller`](apis/person-controller/compose.yaml) | Person Controller | Apache | wfd | <https://github.com/mongodb-developer/java-spring-boot-mongodb-starter> |  |
 | [`petclinic-rest`](apis/petclinic-rest/compose.yaml) | Spring PetClinic REST | Apache | wfd | <https://github.com/spring-petclinic/spring-petclinic-rest> |  |
-| [`proxyprint`](apis/proxyprint/compose.yaml) | ProxyPrint | Apache | wfd | <https://github.com/ProxyPrint/proxyprint-kitchen> | fixed |
+| [`proxyprint`](apis/proxyprint/compose.yaml) | ProxyPrint | Apache | wfd | <https://github.com/ProxyPrint/proxyprint-kitchen> | refused by the API, not handed over |
 | [`quartz-manager`](apis/quartz-manager/compose.yaml) | Quartz Manager | Apache | wfd | <https://github.com/fabioformosa/quartz-manager> | login, token |
 | [`redis-sample`](apis/redis-sample/compose.yaml) | Redis Sample | not-known license | wfd | <https://github.com/hendisantika/spring-boot-redis-sample> |  |
 | [`reservations-api`](apis/reservations-api/compose.yaml) | Reservations API | not-known license | wfd | <https://github.com/cyrilgavala/reservations-api> | login, token |

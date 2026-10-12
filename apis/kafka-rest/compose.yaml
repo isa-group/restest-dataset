@@ -20,6 +20,7 @@ x-dataset:
   documentServedAt: null
   ready: /v3/clusters
   auth: null
+  leaveAlone: []
   coverage:
     kind: jacoco-tcpserver
     port: 6300

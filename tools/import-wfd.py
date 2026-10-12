@@ -42,7 +42,29 @@ README_FOLDER_TO_NAME = {
 READY_OVERRIDES = {
     "kafka-rest": "/v3/clusters",
     "traccar": "/api/server",
-    "cwa-verification": "/version/v1/",
+}
+
+# Operations kept out of every run, and why: called with the credentials RESTest was given, each
+# leaves the rest of the run unable to test anything. Found by reading stored runs, not guessed.
+LEAVE_ALONE = {
+    "commafeed": [
+        ("POST /rest/admin/user/save", "can change the password of the user RESTest signs in as"),
+        ("POST /rest/admin/user/delete", "can delete the user RESTest signs in as"),
+        ("POST /rest/user/profile", "changes the password of the user RESTest signs in as"),
+        ("POST /rest/user/profile/deleteAccount", "deletes the user RESTest signs in as"),
+    ],
+    "traccar": [
+        ("postServerReboot", "stops the server"),
+        ("putUsersId", "can change the password of the user RESTest signs in as"),
+        ("deleteUsersId", "can delete the user RESTest signs in as"),
+    ],
+}
+
+# Credentials files whose users the published image refuses: handing them over would make the run
+# worse than giving none, so they are kept, and not handed over.
+AUTH_REFUSED = {
+    "proxyprint": "the image answers 401 to every user in the file, even on operations open to "
+                  "anybody, which answer 200 with no credentials (checked 12 October 2026)",
 }
 
 SUT_PORT = 8080
@@ -127,6 +149,16 @@ def auth_description(text, auth_server):
     return {"file": "auth.yaml", "user": user, "server": server}
 
 
+def operation_names(document):
+    """Every operation of the document, each by its operationId and by its method and path."""
+    for path, operations in json.loads(document.read_text(encoding="utf-8")).get("paths", {}).items():
+        for method, operation in operations.items():
+            if method in ("get", "put", "post", "delete", "patch", "head", "options", "trace"):
+                yield f"{method.upper()} {path}"
+                if operation.get("operationId"):
+                    yield operation["operationId"]
+
+
 def session_enders(document):
     """Operations that end the session a login opened: logging out with the token or cookie RESTest
     was given leaves every later request refused, since RESTest does not log in again."""
@@ -172,9 +204,9 @@ def from_docker_hub(image):
         raise subprocess.CalledProcessError(1, ["docker-hub", "tag", image], stderr=str(error))
     platforms = sorted({f"{i['os']}/{i['architecture']}" for i in data.get("images", [])
                         if i.get("os") not in (None, "unknown")})
-    images = [i for i in data.get("images", []) if i.get("digest")]
-    # Old multi-platform tags carry no digest of their own; one image alone can be pinned by its own.
-    digest = data.get("digest") or (images[0]["digest"] if len(images) == 1 else None)
+    # Old tags carry no digest of their own here, and the digests of their images cannot always be
+    # pulled: the registry is asked for those.
+    digest = data.get("digest")
     if not digest:
         return None
     return f"{image}@{digest}", platforms or None
@@ -239,11 +271,20 @@ def import_api(name, readme, urls, commit):
                 published.append((service_name, int(ports[0]["target"])))
         for volume in service.get("volumes", []):
             source = volume.get("source", "")
-            if volume.get("type") == "bind" and source.startswith("./"):
+            if volume.get("type") == "bind" and not source.startswith("/"):
                 origin = (WFD / "dockerfiles" / source).resolve()
+                if not origin.exists():
+                    raise ValueError(f"{name}: {source} is mounted but not in WFD")
                 copy = target / "files" / origin.name
                 copy.parent.mkdir(exist_ok=True)
-                shutil.copy2(origin, copy)
+                if origin.is_dir():
+                    shutil.copytree(origin, copy)
+                else:
+                    shutil.copy2(origin, copy)
+                # A container runs a mounted script only when it may: WFD's are not marked executable.
+                for script in ([copy] if copy.is_file() else copy.rglob("*")):
+                    if script.suffix == ".sh":
+                        script.chmod(script.stat().st_mode | 0o111)
                 volume["source"] = f"./files/{origin.name}"
                 volume.pop("bind", None)
 
@@ -254,6 +295,7 @@ def import_api(name, readme, urls, commit):
             document = f"openapi.{ext}"
             shutil.copy2(candidate, target / document)
     auth = None
+    leave_alone = [{"operation": o, "why": why} for o, why in LEAVE_ALONE.get(name, [])]
     auth_source = WFD / "auth" / f"{name}-auth.yaml"
     if auth_source.exists():
         shutil.copy2(auth_source, target / "auth.yaml")
@@ -265,8 +307,11 @@ def import_api(name, readme, urls, commit):
             server = {"service": published[0][0], "port": published[0][1]}
             services[server["service"]]["ports"] = [f"127.0.0.1::{server['port']}"]
         auth = auth_description(text, server)
+        if name in AUTH_REFUSED:
+            auth["refused"] = AUTH_REFUSED[name]
         if "loginEndpointAuth" in text and document:
-            auth["leaveAlone"] = session_enders(target / document)
+            leave_alone += [{"operation": o, "why": "ends the session the login opened"}
+                            for o in session_enders(target / document)]
 
     entry = readme.get(name, {})
     docs = served_path(urls.get(name))
@@ -291,6 +336,7 @@ def import_api(name, readme, urls, commit):
         "documentServedAt": docs,
         "ready": READY_OVERRIDES.get(name, docs),
         "auth": auth,
+        "leaveAlone": leave_alone,
         "coverage": {"kind": "jacoco-tcpserver", "port": JACOCO_PORT},
         "platforms": sut_platforms,
     }
@@ -301,6 +347,11 @@ def import_api(name, readme, urls, commit):
     header = (f"# {dataset['title']}, imported from the Web Fuzzing Dataset by tools/import-wfd.py.\n"
               f"# Regenerate rather than edit: tools/import-wfd.py {name}\n")
     (target / "compose.yaml").write_text(header + to_yaml(out) + "\n", encoding="utf-8")
+    if leave_alone and document:
+        known = set(operation_names(target / document))
+        missing = [e["operation"] for e in leave_alone if e["operation"] not in known]
+        if missing:
+            raise ValueError(f"{name}: no such operations to leave alone: {missing}")
     run("docker", "compose", "-f", str(target / "compose.yaml"), "config", "-q")
     shutil.rmtree(final, ignore_errors=True)
     target.rename(final)

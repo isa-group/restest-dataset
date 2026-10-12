@@ -23,6 +23,15 @@ x-dataset:
     file: auth.yaml
     user: admin
     server: null
+  leaveAlone:
+    - operation: POST /rest/admin/user/save
+      why: can change the password of the user RESTest signs in as
+    - operation: POST /rest/admin/user/delete
+      why: can delete the user RESTest signs in as
+    - operation: POST /rest/user/profile
+      why: changes the password of the user RESTest signs in as
+    - operation: POST /rest/user/profile/deleteAccount
+      why: deletes the user RESTest signs in as
   coverage:
     kind: jacoco-tcpserver
     port: 6300

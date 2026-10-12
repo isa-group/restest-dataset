@@ -20,6 +20,7 @@ x-dataset:
   documentServedAt: /openapi.json
   ready: /openapi.json
   auth: null
+  leaveAlone: []
   coverage:
     kind: jacoco-tcpserver
     port: 6300

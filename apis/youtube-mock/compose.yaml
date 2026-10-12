@@ -20,6 +20,7 @@ x-dataset:
   documentServedAt: /swagger.yaml
   ready: /swagger.yaml
   auth: null
+  leaveAlone: []
   coverage:
     kind: jacoco-tcpserver
     port: 6300

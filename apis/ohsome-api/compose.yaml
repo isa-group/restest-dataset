@@ -20,6 +20,7 @@ x-dataset:
   documentServedAt: "/docs?group=Data%20Aggregation"
   ready: "/docs?group=Data%20Aggregation"
   auth: null
+  leaveAlone: []
   coverage:
     kind: jacoco-tcpserver
     port: 6300

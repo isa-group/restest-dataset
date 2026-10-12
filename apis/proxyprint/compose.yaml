@@ -23,6 +23,8 @@ x-dataset:
     file: auth.yaml
     user: admin
     server: null
+    refused: "the image answers 401 to every user in the file, even on operations open to anybody, which answer 200 with no credentials (checked 12 October 2026)"
+  leaveAlone: []
   coverage:
     kind: jacoco-tcpserver
     port: 6300
