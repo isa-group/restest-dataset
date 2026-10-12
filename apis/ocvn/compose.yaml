@@ -1,0 +1,44 @@
+# OCVN, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py ocvn
+name: rd-ocvn
+x-dataset:
+  id: ocvn
+  title: OCVN
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_8_maven/cs/rest-gui/ocvn
+  upstream:
+    repository: https://github.com/devgateway/ocvn
+    license: MIT
+  language: jvm
+  service: sut-ocvn
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: "/v2/api-docs?group=1ocDashboardsApi"
+  ready: "/v2/api-docs?group=1ocDashboardsApi"
+  auth:
+    file: auth.yaml
+    user: ADMIN
+    restest: []
+    login: true
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  db:
+    image: mongo:3.2@sha256:0463a91d8eff189747348c154507afc7aba045baa40e8d58d8a4c798e71001f3
+    tmpfs:
+      - /data/db
+  sut-ocvn:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-ocvn:FINAL@sha256:c3797a19548982479fd32ec703b79c77b3fe3388a43c3556cbc551d305a6b8e1
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

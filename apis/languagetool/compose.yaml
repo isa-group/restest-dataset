@@ -1,0 +1,36 @@
+# Languagetool, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py languagetool
+name: rd-languagetool
+x-dataset:
+  id: languagetool
+  title: Languagetool
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_8_maven/cs/rest/original/languagetool
+  upstream:
+    repository: https://github.com/languagetool-org/languagetool
+    license: LGPL
+  language: jvm
+  service: sut-languagetool
+  port: 8080
+  document: openapi.json
+  basePath: /v2
+  documentServedAt: /v2/swagger
+  ready: /v2/swagger
+  auth: null
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  sut-languagetool:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-languagetool:FINAL@sha256:9720d3a71ebf37a6d81e31cc828e1c6d5c01985666c1f9f68d20f3568917fb99
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

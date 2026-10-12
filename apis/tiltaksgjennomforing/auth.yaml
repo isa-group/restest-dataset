@@ -1,0 +1,28 @@
+auth:
+  - name: "aad"
+    loginEndpointAuth:
+      externalEndpointURL: "http://localhost:8083/aad/token"
+      payloadRaw: "NAVident=Q987654&grant_type=client_credentials&code=foo&client_id=foo&client_secret=secret"
+  - name: "system"
+    loginEndpointAuth:
+      externalEndpointURL: "http://localhost:8083/system/token"
+      payloadRaw: "sub=system&grant_type=client_credentials&code=foo&client_id=foo&client_secret=secret"
+  - name: "tokenxLevel3"
+    loginEndpointAuth:
+      externalEndpointURL: "http://localhost:8083/tokenx/token"
+      payloadRaw: "pid=88888888888&grant_type=client_credentials&code=foo&client_id=foo&client_secret=secret"
+  - name: "tokenxLevel4"
+    loginEndpointAuth:
+      externalEndpointURL: "http://localhost:8083/tokenx/token"
+      payloadRaw: "pid=99999999999&grant_type=client_credentials&code=foo&client_id=foo&client_secret=secret"
+
+authTemplate:
+  loginEndpointAuth:
+    verb: POST
+    contentType: application/x-www-form-urlencoded
+    token:
+      extractFrom: body
+      extractSelector: /access_token
+      sendName: Authorization
+      sendIn: header
+      sendTemplate: "Bearer {token}"

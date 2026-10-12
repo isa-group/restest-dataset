@@ -1,0 +1,59 @@
+# Reservations API, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py reservations-api
+name: rd-reservations-api
+x-dataset:
+  id: reservations-api
+  title: Reservations API
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_11_gradle/cs/rest/reservations-api
+  upstream:
+    repository: https://github.com/cyrilgavala/reservations-api
+    license: not-known license
+  language: jvm
+  service: sut-reservations-api
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /v3/api-docs
+  ready: /v3/api-docs
+  auth:
+    file: auth.yaml
+    user: foo
+    restest: []
+    login: true
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  db:
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --bind_ip_all
+    image: mongo:4.4@sha256:4be76f674fc4b27859816811b8baa3c51830eb1dbf4ca81a51e26b79edd662ef
+    tmpfs:
+      - /data/db
+    volumes:
+      - type: bind
+        source: ./files/mongo-init.js
+        target: /docker-entrypoint-initdb.d/01-init-replica.js
+      - type: bind
+        source: ./files/mongo_import.sh
+        target: /docker-entrypoint-initdb.d/mongo_import.sh
+      - type: bind
+        source: ./files/init.json
+        target: /fixtures/init.json
+  sut-reservations-api:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-reservations-api:FINAL@sha256:cfbc9435982f706739220b5d7749ff6a402ec38a043703607b125da2c6da4c9e
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

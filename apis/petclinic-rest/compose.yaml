@@ -1,0 +1,36 @@
+# Spring PetClinic REST, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py petclinic-rest
+name: rd-petclinic-rest
+x-dataset:
+  id: petclinic-rest
+  title: Spring PetClinic REST
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_17_maven/cs/rest/petclinic-rest
+  upstream:
+    repository: https://github.com/spring-petclinic/spring-petclinic-rest
+    license: Apache
+  language: jvm
+  service: sut-petclinic-rest
+  port: 8080
+  document: openapi.json
+  basePath: /petclinic
+  documentServedAt: /petclinic/v3/api-docs
+  ready: /petclinic/v3/api-docs
+  auth: null
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  sut-petclinic-rest:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-petclinic-rest:FINAL@sha256:88331a1fdf244ae7bbbf5a7f3f434d17b9b8c0b3f839d193007851d213e90a88
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

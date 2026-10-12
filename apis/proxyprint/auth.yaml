@@ -1,0 +1,17 @@
+auth:
+  - name: admin
+    fixedHeaders:
+      - name: Authorization
+        value: Basic bWFzdGVyOjEyMzQ=
+  - name: consumer
+    fixedHeaders:
+      - name: Authorization
+        value: Basic am9hbzoxMjM0
+  - name: manager
+    fixedHeaders:
+      - name: Authorization
+        value: Basic am9hcXVpbToxMjM0
+  - name: employee
+    fixedHeaders:
+      - name: Authorization
+        value: Basic bWFmYWxkYToxMjM0

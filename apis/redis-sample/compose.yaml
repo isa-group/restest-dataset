@@ -1,0 +1,42 @@
+# Redis Sample, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py redis-sample
+name: rd-redis-sample
+x-dataset:
+  id: redis-sample
+  title: Redis Sample
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_21_maven/cs/rest/redis-sample
+  upstream:
+    repository: https://github.com/hendisantika/spring-boot-redis-sample
+    license: not-known license
+  language: jvm
+  service: sut-redis-sample
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /v3/api-docs
+  ready: /v3/api-docs
+  auth: null
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  db:
+    command:
+      - redis-server
+      - --requirepass
+      - 53cret
+    image: redis:7.4-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+  sut-redis-sample:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-redis-sample:FINAL@sha256:83203386f2731b1fdbd5da7701b56fe9002b47f3916f51133483f4860c4d242c
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

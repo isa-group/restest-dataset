@@ -1,0 +1,16 @@
+[
+    {
+        "_class": "com.techie.shoppingstore.model.User",
+        "username": "user1",
+        "email": "user1@email.com",
+        "password": "$2a$12$p9eP3beaPuSMbS1enDn1Z.zFuv6npjm6xjyQnnEqvVG.CD03d1aoi",
+        "enabled": true
+    },
+    {
+        "_class": "com.techie.shoppingstore.model.User",
+        "username": "user2",
+        "email": "user2@email.com",
+        "password": "$2a$12$p9eP3beaPuSMbS1enDn1Z.zFuv6npjm6xjyQnnEqvVG.CD03d1aoi",
+        "enabled": true
+    }
+]

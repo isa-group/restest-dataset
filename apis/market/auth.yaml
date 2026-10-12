@@ -1,0 +1,13 @@
+auth:
+  - name: admin
+    fixedHeaders:
+      - name: Authorization
+        value: Basic YWRtaW46cGFzc3dvcmQ=
+  - name: user
+    fixedHeaders:
+      - name: Authorization
+        value: Basic aXZhbi5wZXRyb3ZAeWFuZGV4LnJ1OnBldHJvdg==
+  - name: user2
+    fixedHeaders:
+      - name: Authorization
+        value: Basic dXNlcjJAeWFuZGV4LnJ1Onl1cmlkb2xnb3J1a2k=

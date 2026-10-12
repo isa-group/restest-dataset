@@ -1,0 +1,41 @@
+# Traccar, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py traccar
+name: rd-traccar
+x-dataset:
+  id: traccar
+  title: Traccar
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_21_gradle/cs/rest/traccar
+  upstream:
+    repository: https://github.com/traccar/traccar
+    license: Apache
+  language: jvm
+  service: sut-traccar
+  port: 8080
+  document: openapi.json
+  basePath: /api
+  documentServedAt: null
+  ready: /api/server
+  auth:
+    file: auth.yaml
+    user: admin
+    restest:
+      - header:Authorization=Basic YWRtaW5AdHJhY2Nhci5pbnZhbGlkOmFkbWluMTIz
+    login: false
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  sut-traccar:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-traccar:FINAL@sha256:0766a192bbdaed7c955a39f2291b86be10c027ca1e4c6db47c80830c9e925382
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

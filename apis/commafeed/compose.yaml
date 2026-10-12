@@ -1,0 +1,41 @@
+# CommaFeed, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py commafeed
+name: rd-commafeed
+x-dataset:
+  id: commafeed
+  title: CommaFeed
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_25_maven/cs/rest/commafeed
+  upstream:
+    repository: https://github.com/Athou/commafeed
+    license: Apache
+  language: jvm
+  service: sut-commafeed
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: "/openapi?format=json"
+  ready: "/openapi?format=json"
+  auth:
+    file: auth.yaml
+    user: admin
+    restest:
+      - header:Authorization=Basic YWRtaW46YWRtaW4xMjM=
+    login: false
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  sut-commafeed:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-commafeed:FINAL@sha256:f9fd4a51c0978000995bdb755d448eb5535eb51fa903978f4e80e101465d22e6
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

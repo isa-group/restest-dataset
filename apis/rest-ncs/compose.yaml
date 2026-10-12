@@ -1,0 +1,36 @@
+# NCS, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py rest-ncs
+name: rd-rest-ncs
+x-dataset:
+  id: rest-ncs
+  title: NCS
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_8_maven/cs/rest/artificial/ncs
+  upstream:
+    repository: null
+    license: not-known license
+  language: jvm
+  service: sut-rest-ncs
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /v2/api-docs
+  ready: /v2/api-docs
+  auth: null
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  sut-rest-ncs:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-rest-ncs:FINAL@sha256:e112f1618f6b48d97b1d315b5070c3199249a0d02fbe071ac3c21e2776302843
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

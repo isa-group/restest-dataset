@@ -1,0 +1,14 @@
+auth:
+  - name: ADMIN
+    loginEndpointAuth:
+      payloadRaw: "username=admin&password=admin"
+  - name: user1
+    loginEndpointAuth:
+      payloadRaw: "username=user1&password=password"
+
+authTemplate:
+    loginEndpointAuth:
+        endpoint: /login
+        verb: POST
+        contentType: application/x-www-form-urlencoded
+        expectCookies: true

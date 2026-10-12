@@ -1,0 +1,41 @@
+# Market, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py market
+name: rd-market
+x-dataset:
+  id: market
+  title: Market
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_11_maven/cs/rest-gui/market
+  upstream:
+    repository: https://github.com/aleksey-lukyanets/market
+    license: MIT
+  language: jvm
+  service: sut-market
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /v2/api-docs
+  ready: /v2/api-docs
+  auth:
+    file: auth.yaml
+    user: admin
+    restest:
+      - header:Authorization=Basic YWRtaW46cGFzc3dvcmQ=
+    login: false
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  sut-market:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-market:FINAL@sha256:c428a4c1f677b5958157d13eb7e65815e4e5bf8f5a688e955f1b958c3f1ad83a
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

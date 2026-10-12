@@ -1,0 +1,329 @@
+#!/usr/bin/env python3
+"""Starts the dataset's APIs and runs RESTest against them.
+
+  ./dataset list [--suite NAME]
+  ./dataset up <api> [--timeout SECONDS]          start it, wait until it answers, print its address
+  ./dataset down <api>                            stop it and throw its data away
+  ./dataset run <api|suite:NAME>... --restest CMD [--budget 60s] [--runs N] [--out DIR] [--auth]
+                [-- <more options for restest run>]
+  ./dataset summary <DIR>                         one line per run, from each report.json
+
+Every run starts the API from scratch and removes it afterwards, so runs never see each other's data.
+Needs Docker with Compose v2 and Python 3.9 or later; nothing else.
+"""
+
+import argparse
+import csv
+import json
+import os
+import shlex
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+APIS = ROOT / "apis"
+SUITES = ROOT / "suites"
+
+
+def fail(message):
+    print(f"dataset: {message}", file=sys.stderr)
+    sys.exit(2)
+
+
+# ---------------------------------------------------------------------------------------- catalogue
+
+def compose_file(api):
+    path = APIS / api / "compose.yaml"
+    if not path.is_file():
+        fail(f"no API called {api!r} in apis/ (./dataset list shows them)")
+    return path
+
+
+def describe(api):
+    """The x-dataset entry of the API's compose file."""
+    out = subprocess.run(
+        ["docker", "compose", "-f", str(compose_file(api)), "config", "--format", "json",
+         "--no-interpolate", "--no-path-resolution"],
+        check=True, capture_output=True, text=True).stdout
+    return json.loads(out)["x-dataset"]
+
+
+def all_apis():
+    return sorted(p.parent.name for p in APIS.glob("*/compose.yaml"))
+
+
+def suite(name):
+    path = SUITES / f"{name}.txt"
+    if name == "all":
+        return all_apis()
+    if not path.is_file():
+        known = ", ".join(["all"] + sorted(p.stem for p in SUITES.glob("*.txt")))
+        fail(f"no suite called {name!r}; there are: {known}")
+    apis = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.split("#", 1)[0].strip()
+        if line:
+            compose_file(line)
+            apis.append(line)
+    return apis
+
+
+def expand(targets):
+    apis = []
+    for target in targets:
+        apis.extend(suite(target[len("suite:"):]) if target.startswith("suite:") else [target])
+    return apis
+
+
+# -------------------------------------------------------------------------------------- containers
+
+def compose(api, *args, capture=False):
+    command = ["docker", "compose", "-f", str(compose_file(api)), *args]
+    if capture:
+        return subprocess.run(command, check=True, capture_output=True, text=True).stdout
+    return subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+
+
+def published(api, entry, port):
+    out = compose(api, "port", entry["service"], str(port), capture=True).strip()
+    return out.rsplit(":", 1)[1] if out else None
+
+
+def status_of(url):
+    try:
+        with urllib.request.urlopen(url, timeout=5) as reply:
+            return reply.status
+    except urllib.error.HTTPError as error:
+        return error.code
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def up(api, timeout):
+    entry = describe(api)
+    compose(api, "down", "--volumes", "--remove-orphans")
+    try:
+        compose(api, "up", "--detach")
+    except subprocess.CalledProcessError as error:
+        fail(f"{api} did not start: {error.stderr.decode(errors='replace').strip()[-2000:]}")
+    port = published(api, entry, entry["port"])
+    base = f"http://127.0.0.1:{port}"
+    ready = entry.get("ready")
+    deadline = time.monotonic() + timeout
+    while True:
+        status = status_of(base + (ready or "/"))
+        if (ready and status is not None and 200 <= status < 300) or \
+                (not ready and status is not None and status not in (502, 503)):
+            break
+        if time.monotonic() > deadline:
+            logs = compose(api, "logs", "--tail", "40", entry["service"], capture=True)
+            compose(api, "down", "--volumes", "--remove-orphans")
+            fail(f"{api} did not answer {ready or '/'} within {timeout}s (last: {status})\n{logs}")
+        time.sleep(1)
+    return entry, base
+
+
+def down(api):
+    compose(api, "down", "--volumes", "--remove-orphans")
+
+
+def auth_options(api, entry, base):
+    """What to hand RESTest's --auth: the API's own setup script first, else its fixed headers."""
+    setup = APIS / api / "setup"
+    if setup.is_file():
+        env = dict(os.environ, DATASET_URL=base, DATASET_COMPOSE=str(compose_file(api)),
+                   DATASET_SERVICE=entry["service"])
+        out = subprocess.run([str(setup)], check=True, capture_output=True, text=True, env=env).stdout
+        return [line.strip() for line in out.splitlines() if line.strip()]
+    auth = entry.get("auth") or {}
+    return list(auth.get("restest") or [])
+
+
+# -------------------------------------------------------------------------------------------- runs
+
+def restest_command(value):
+    command = shlex.split(value or os.environ.get("RESTEST", "restest"))
+    return command
+
+
+def run(args, extra):
+    apis = expand(args.targets)
+    if not apis:
+        fail("nothing to run")
+    restest = restest_command(args.restest)
+    out = Path(args.out or ROOT / "out" / datetime.now().strftime("%Y%m%d-%H%M%S")).resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "campaign.json").write_text(json.dumps({
+        "started": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "restest": restest, "budget": args.budget, "runs": args.runs, "auth": args.auth,
+        "extra": extra, "apis": apis,
+        "dataset": subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True,
+                                  text=True).stdout.strip() or None,
+    }, indent=2) + "\n", encoding="utf-8")
+    print(f"{len(apis)} API(s) x {args.runs} run(s), {args.budget} each, into {out}")
+    for api in apis:
+        for n in range(1, args.runs + 1):
+            target = out / api / f"run-{n}"
+            target.mkdir(parents=True, exist_ok=True)
+            print(f"\n== {api} run {n}/{args.runs}", flush=True)
+            started = time.monotonic()
+            entry, base = up(api, args.timeout)
+            print(f"   up at {base} after {time.monotonic() - started:.0f}s", flush=True)
+            try:
+                options = []
+                if args.auth:
+                    options = [o for value in auth_options(api, entry, base) for o in ("--auth", value)]
+                document = APIS / api / entry["document"]
+                url = base + (entry.get("basePath") or "")
+                command = [*restest, "run", str(document), "--url", url, "--budget", args.budget,
+                           "--out", str(target), *options, *extra]
+                with open(target / "restest.log", "w", encoding="utf-8") as log:
+                    code = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT).returncode
+                (target / "exit-code").write_text(f"{code}\n", encoding="utf-8")
+                with open(target / "api.log", "w", encoding="utf-8") as log:
+                    subprocess.run(["docker", "compose", "-f", str(compose_file(api)), "logs",
+                                    "--no-color"], stdout=log, stderr=subprocess.STDOUT)
+                print(f"   restest answered {code}; {line_of(target)}", flush=True)
+            finally:
+                down(api)
+    print()
+    summary(out)
+
+
+def line_of(run_dir):
+    report = run_dir / "report.json"
+    if not report.is_file():
+        return "no report.json"
+    totals = json.loads(report.read_text(encoding="utf-8")).get("totals", {})
+    return (f"{totals.get('requests')} requests, {totals.get('operations')} operations, "
+            f"{totals.get('faults')} faults of {totals.get('faultKinds')} kinds")
+
+
+def summary(out):
+    out = Path(out)
+    rows = []
+    for report in sorted(out.glob("*/run-*/report.json")):
+        data = json.loads(report.read_text(encoding="utf-8"))
+        totals = data.get("totals", {})
+        by_class = (data.get("replies") or {}).get("byClass") or {}
+        errors = data.get("serverErrors") or {}
+        rows.append({
+            "api": report.parent.parent.name,
+            "run": report.parent.name,
+            "restest": (data.get("tool") or {}).get("version"),
+            "requests": totals.get("requests"),
+            "operations": totals.get("operations"),
+            "2xx": by_class.get("2xx"),
+            "4xx": by_class.get("4xx"),
+            "5xx": by_class.get("5xx"),
+            "operations_500": errors.get("operationsAnswering500"),
+            "faults": totals.get("faults"),
+            "fault_kinds": totals.get("faultKinds"),
+            "operations_with_faults": totals.get("operationsWithFaults"),
+            "elapsed": totals.get("elapsed"),
+        })
+    if not rows:
+        fail(f"no report.json under {out}")
+    with open(out / "summary.csv", "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    columns = ["api", "run", "requests", "operations", "2xx", "5xx", "faults", "fault_kinds"]
+    widths = {c: max(len(c), *(len(str(r[c])) for r in rows)) for c in columns}
+    print("  ".join(c.ljust(widths[c]) for c in columns))
+    for r in rows:
+        print("  ".join(str(r[c]).ljust(widths[c]) for c in columns))
+    print(f"\n{out / 'summary.csv'}")
+
+
+def catalogue(apis):
+    print("| API | Name | Licence | From | Upstream | Credentials |")
+    print("|---|---|---|---|---|---|")
+    for api in apis:
+        entry = describe(api)
+        auth = entry.get("auth") or {}
+        if (APIS / api / "setup").is_file():
+            credentials = "made by `setup`"
+        elif auth.get("restest"):
+            credentials = "fixed, `--auth`"
+        elif auth.get("login"):
+            credentials = "by login (not handed over)"
+        else:
+            credentials = ""
+        upstream = entry["upstream"].get("repository")
+        print(f"| [`{api}`](apis/{api}/compose.yaml) | {entry['title']} | {entry['upstream']['license']} "
+              f"| {entry['origin']['dataset']} | {f'<{upstream}>' if upstream else ''} | {credentials} |")
+
+
+# ---------------------------------------------------------------------------------------- commands
+
+def main():
+    argv = sys.argv[1:]
+    extra = []
+    if "--" in argv:
+        at = argv.index("--")
+        argv, extra = argv[:at], argv[at + 1:]
+
+    parser = argparse.ArgumentParser(prog="dataset", description=__doc__.split("\n\n")[0])
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    p = commands.add_parser("list", help="the APIs, or those of one suite")
+    p.add_argument("--suite")
+    p.add_argument("--markdown", action="store_true", help="as the table in CATALOGUE.md")
+
+    p = commands.add_parser("up", help="start an API and wait until it answers")
+    p.add_argument("api")
+    p.add_argument("--timeout", type=int, default=600)
+
+    p = commands.add_parser("down", help="stop an API and remove its data")
+    p.add_argument("api")
+
+    p = commands.add_parser("run", help="run RESTest against APIs, each from scratch")
+    p.add_argument("targets", nargs="+", metavar="api|suite:NAME")
+    p.add_argument("--restest", help="the command that runs RESTest (default: $RESTEST, else restest)")
+    p.add_argument("--budget", default="60s")
+    p.add_argument("--runs", type=int, default=1)
+    p.add_argument("--out")
+    p.add_argument("--timeout", type=int, default=600, help="seconds an API is given to start")
+    p.add_argument("--auth", action="store_true",
+                   help="hand RESTest the API's credentials, when the dataset has any")
+
+    p = commands.add_parser("summary", help="one line per run, from each report.json")
+    p.add_argument("out")
+
+    args = parser.parse_args(argv)
+    if args.command == "list" and args.markdown:
+        catalogue(suite(args.suite) if args.suite else all_apis())
+    elif args.command == "list":
+        for api in (suite(args.suite) if args.suite else all_apis()):
+            entry = describe(api)
+            auth = entry.get("auth") or {}
+            notes = []
+            if auth.get("restest"):
+                notes.append("auth")
+            elif auth.get("login"):
+                notes.append("auth by login (not handed to RESTest)")
+            if (APIS / api / "setup").is_file():
+                notes.append("setup")
+            print(f"{api:24} {entry['title'][:36]:36} {entry['upstream']['license'][:26]:26} "
+                  f"{entry['origin']['dataset']:12} {', '.join(notes)}")
+    elif args.command == "up":
+        entry, base = up(args.api, args.timeout)
+        print(base)
+        for value in auth_options(args.api, entry, base):
+            print(f"--auth {shlex.quote(value)}")
+    elif args.command == "down":
+        down(args.api)
+    elif args.command == "run":
+        run(args, extra)
+    elif args.command == "summary":
+        summary(args.out)
+
+
+if __name__ == "__main__":
+    main()

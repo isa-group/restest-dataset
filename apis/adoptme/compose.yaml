@@ -1,0 +1,59 @@
+# AdoptMe, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py adoptme
+name: rd-adoptme
+x-dataset:
+  id: adoptme
+  title: AdoptMe
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_21_maven/cs/rest/adoptme
+  upstream:
+    repository: https://github.com/daanimelian/Programacion3-TPO
+    license: not-known license
+  language: jvm
+  service: sut-adoptme
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /v3/api-docs
+  ready: /v3/api-docs
+  auth: null
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  db:
+    environment:
+      NEO4J_AUTH: neo4j/neo4j123
+      NEO4J_server_memory_heap_max__size: 512M
+      NEO4J_server_memory_pagecache_size: 256M
+    healthcheck:
+      test:
+        - CMD
+        - cypher-shell
+        - -u
+        - neo4j
+        - -p
+        - neo4j123
+        - RETURN 1
+      timeout: 30s
+      interval: 30s
+      retries: 3
+    image: neo4j:5.26@sha256:c7d25c0eeebfe125718d58b72ed5d663c85d0479047733845eb2237c67ce8069
+    tmpfs:
+      - /data
+  sut-adoptme:
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-adoptme:FINAL@sha256:ea3b2c302e43f142e50e36209e9866f3dde8d38566834b16758005484e886e0d
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

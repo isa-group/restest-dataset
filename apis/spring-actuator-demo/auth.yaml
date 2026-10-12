@@ -1,0 +1,5 @@
+auth:
+  - name: admin
+    fixedHeaders:
+      - name: Authorization
+        value: Basic YWN0dWF0b3I6YWN0dWF0b3I=

@@ -1,0 +1,40 @@
+# WebGoat, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py webgoat
+name: rd-webgoat
+x-dataset:
+  id: webgoat
+  title: WebGoat
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_21_maven/cs/rest-gui/webgoat
+  upstream:
+    repository: https://github.com/WebGoat/WebGoat
+    license: GPL
+  language: jvm
+  service: sut-webgoat
+  port: 8080
+  document: openapi.json
+  basePath: /WebGoat
+  documentServedAt: /WebGoat/v3/api-docs
+  ready: /WebGoat/v3/api-docs
+  auth:
+    file: auth.yaml
+    user: user1
+    restest: []
+    login: true
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  sut-webgoat:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-webgoat:FINAL@sha256:3fa042bf2d325be810d7907f7bb947ef9876f18b343eba6dc435c4b6cdfeb726
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

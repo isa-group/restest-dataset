@@ -1,0 +1,5 @@
+[submodule "upstream/wfd"]
+	path = upstream/wfd
+	url = https://github.com/WebFuzzing/Dataset
+	shallow = true
+	branch = develop

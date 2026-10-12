@@ -1,0 +1,3 @@
+# Two small APIs that start in seconds: a quick check that the dataset and RESTest work.
+swagger-petstore
+scout-api

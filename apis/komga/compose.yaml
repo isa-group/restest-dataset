@@ -1,0 +1,41 @@
+# Komga, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py komga
+name: rd-komga
+x-dataset:
+  id: komga
+  title: Komga
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_17_gradle/cs/rest/komga
+  upstream:
+    repository: https://github.com/gotson/komga
+    license: MIT
+  language: jvm
+  service: sut-komga
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /v3/api-docs
+  ready: /v3/api-docs
+  auth:
+    file: auth.yaml
+    user: wfd_admin1
+    restest:
+      - header:Authorization=Basic d2ZkX2FkbWluMUB3ZmQuaW52YWxpZDpXZmQtQWRtaW4tUGFzczE=
+    login: false
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  sut-komga:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-komga:FINAL@sha256:98cde6b56aef61d823c1bf7f8dbc705fa8f47d34add95d7d32a906679387175d
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

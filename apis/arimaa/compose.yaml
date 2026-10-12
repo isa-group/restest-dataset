@@ -1,0 +1,97 @@
+# Arimaa, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py arimaa
+name: rd-arimaa
+x-dataset:
+  id: arimaa
+  title: Arimaa
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_21_maven/cs/rest/arimaa
+  upstream:
+    repository: https://github.com/KEAArimaaProject/arimaa-backend
+    license: not-known license
+  language: jvm
+  service: sut-arimaa
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /v3/api-docs
+  ready: /v3/api-docs
+  auth:
+    file: auth.yaml
+    user: wfd_admin1
+    restest:
+      - header:Authorization=Basic d2ZkX2FkbWluMTpXZmQtQWRtaW4tUGFzczE=
+    login: false
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  db:
+    environment:
+      MYSQL_DATABASE: arimaadockermysqldb
+      MYSQL_ROOT_PASSWORD: "wfdRootPass123!"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "mysqladmin ping -h localhost -u root -pwfdRootPass123! --silent"
+      timeout: 30s
+      interval: 30s
+      retries: 3
+    image: mysql:9.5.0@sha256:57c892ddeb17e6c7dddf219914db017b2cf3e2797806a75424444b83622cc8ef
+    volumes:
+      - type: bind
+        source: ../jdk_21_maven/cs/rest/arimaa/Database/mysql
+        target: /docker-entrypoint-initdb.d
+        bind: {}
+  mongodb:
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "mongosh --quiet --eval \"db.adminCommand('ping')\""
+      timeout: 30s
+      interval: 30s
+      retries: 3
+    image: mongo:7@sha256:1f995ad6fdb93244a1addab1b58f934a0bc2f5643c38e02f5e9d7f0c7d227a7b
+    volumes:
+      - type: bind
+        source: ./files/arimaa-mongo-seed.js
+        target: /docker-entrypoint-initdb.d/arimaa-mongo-seed.js
+  neo4j:
+    command:
+      - bash
+      - -c
+      - "/startup/docker-entrypoint.sh neo4j & pid=$$!; until cypher-shell -u neo4j -p wfdNeo4jPass123 \"RETURN 1\" >/dev/null 2>&1; do sleep 2; done; cypher-shell -u neo4j -p wfdNeo4jPass123 -f /seed.cypher; cypher-shell -u neo4j -p wfdNeo4jPass123 \"CREATE (:WfdSeedComplete)\"; wait "
+    environment:
+      NEO4J_AUTH: neo4j/wfdNeo4jPass123
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "cypher-shell -u neo4j -p wfdNeo4jPass123 \"MATCH (:WfdSeedComplete) RETURN 1\""
+      timeout: 30s
+      interval: 30s
+      retries: 3
+    image: neo4j:5.26@sha256:c7d25c0eeebfe125718d58b72ed5d663c85d0479047733845eb2237c67ce8069
+    volumes:
+      - type: bind
+        source: ./files/arimaa-neo4j-seed.cypher
+        target: /seed.cypher
+  sut-arimaa:
+    depends_on:
+      db:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-arimaa:FINAL@sha256:85664ee37b75ddd275c23e8b5563c1bb39d8b030a8bf7f8fd60600a41b0c4187
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

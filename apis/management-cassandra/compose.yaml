@@ -1,0 +1,60 @@
+# Management API for Apache Cassandra, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py management-cassandra
+name: rd-management-cassandra
+x-dataset:
+  id: management-cassandra
+  title: Management API for Apache Cassandra
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_11_maven/cs/rest/management-cassandra
+  upstream:
+    repository: https://github.com/k8ssandra/management-api-for-apache-cassandra
+    license: Apache
+  language: jvm
+  service: sut-management-cassandra
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /openapi.json
+  ready: /openapi.json
+  auth: null
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  cassandra:
+    command:
+      - bash
+      - -c
+      - "python3 /mgmtapi-bridge.py /tmp/mgmtapi.sock 9999 & exec cassandra -f"
+    environment:
+      HEAP_NEWSIZE: 128M
+      JVM_EXTRA_OPTS: -Ddb.unix_socket_file=/tmp/mgmtapi.sock
+      MAX_HEAP_SIZE: 512M
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "test -S /tmp/mgmtapi.sock && cqlsh -e \"SELECT now() FROM system.local\""
+      timeout: 30s
+      interval: 30s
+      retries: 3
+    image: k8ssandra/cass-management-api:4.1.12-v0.1.126@sha256:2bc473af5ee36fcd82cb68f32b219ca25415cd555cdfa128a3a0cadff4ad0427
+    volumes:
+      - type: bind
+        source: ./files/mgmtapi-bridge.py
+        target: /mgmtapi-bridge.py
+  sut-management-cassandra:
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-management-cassandra:FINAL@sha256:87088b704173c8f0753b575aa0409ef16539e3b123ee002ba1feb8c34bef016e
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

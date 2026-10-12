@@ -1,0 +1,99 @@
+{
+  "interactiveLogin": true,
+  "tokenCallbacks": [
+    {
+      "issuerId": "aad",
+      "tokenExpiry": 360000,
+      "requestMappings": [
+        {
+          "requestParam": "NAVident",
+          "match": "Q987654",
+          "claims": {
+            "sub": "blablabla",
+            "aud": [
+              "aad"
+            ],
+            "NAVident": "Q987654",
+            "groups": [
+              "99ea78dc-db77-44d0-b193-c5dc22f01e1d"
+            ],
+            "acr": "Level4",
+            "pid": "aad",
+            "tid": "aad",
+            "azp": "Q987654",
+            "nonce": "myNonce",
+            "ver": "1.0",
+            "roles": [
+              "access_as_application"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "issuerId": "system",
+      "tokenExpiry": 360000,
+      "requestMappings": [
+        {
+          "requestParam": "sub",
+          "match": "system",
+          "claims": {
+            "sub": "system",
+            "aud": [
+              "system"
+            ],
+            "pid": "system",
+            "tid": "system",
+            "nonce": "myNonce",
+            "ver": "1.0",
+            "roles": [
+              "access_as_application"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "issuerId": "tokenx",
+      "tokenExpiry": 360000,
+      "requestMappings": [
+        {
+          "requestParam": "pid",
+          "match": "88888888888",
+          "claims": {
+            "sub": "tokenx",
+            "aud": [
+              "tokenx"
+            ],
+            "pid": "88888888888",
+            "tid": "tokenx",
+            "nonce": "myNonce",
+            "ver": "1.0",
+            "acr": "Level3",
+            "roles": [
+              "access_as_application"
+            ]
+          }
+        },
+        {
+          "requestParam": "pid",
+          "match": "99999999999",
+          "claims": {
+            "sub": "tokenx",
+            "aud": [
+              "tokenx"
+            ],
+            "pid": "99999999999",
+            "tid": "tokenx",
+            "nonce": "myNonce",
+            "ver": "1.0",
+            "acr": "Level4",
+            "roles": [
+              "access_as_application"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

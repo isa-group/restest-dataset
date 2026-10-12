@@ -1,0 +1,19 @@
+auth:
+  - name: USER_1
+    loginEndpointAuth:
+      payloadRaw: "username=foo&password=bar"
+  - name: USER_2
+    loginEndpointAuth:
+      payloadRaw: "username=foo2&password=bar"
+
+authTemplate:
+  loginEndpointAuth:
+    endpoint: /quartz-manager/auth/login
+    verb: POST
+    contentType: application/x-www-form-urlencoded
+    token:
+      extractFrom: body
+      extractSelector: /accessToken
+      sendName: Authorization
+      sendIn: header
+      sendTemplate: "Bearer {token}"

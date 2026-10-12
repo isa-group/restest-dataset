@@ -1,0 +1,13 @@
+auth:
+  - name: user
+    fixedHeaders:
+      - name: Authorization
+        value: ApiKey user
+  - name: moderator
+    fixedHeaders:
+      - name: Authorization
+        value: ApiKey moderator
+  - name: administrator
+    fixedHeaders:
+      - name: Authorization
+        value: ApiKey administrator

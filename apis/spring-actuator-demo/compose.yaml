@@ -1,0 +1,41 @@
+# Spring-actuator-demo, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py spring-actuator-demo
+name: rd-spring-actuator-demo
+x-dataset:
+  id: spring-actuator-demo
+  title: Spring-actuator-demo
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_8_maven/cs/rest/original/spring-actuator-demo
+  upstream:
+    repository: https://github.com/callicoder/spring-boot-actuator-demo
+    license: not-known license
+  language: jvm
+  service: sut-spring-actuator-demo
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /v3/api-docs
+  ready: /v3/api-docs
+  auth:
+    file: auth.yaml
+    user: admin
+    restest:
+      - header:Authorization=Basic YWN0dWF0b3I6YWN0dWF0b3I=
+    login: false
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  sut-spring-actuator-demo:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-spring-actuator-demo:FINAL@sha256:755a8fc549a4739f2a859ab664d1ac6b25354045b902ace4d9075945bf97b769
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

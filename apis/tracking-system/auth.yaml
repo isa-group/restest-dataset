@@ -1,0 +1,17 @@
+auth:
+  - name: ROLE_ADMIN
+    loginEndpointAuth:
+      payloadRaw: "username=admin&password=test"
+  - name: ROLE_EMP
+    loginEndpointAuth:
+      payloadRaw: "username=selimhorri&password=test"
+  - name: ROLE_MGR
+    loginEndpointAuth:
+      payloadRaw: "username=soumayahajjem&password=test"
+
+authTemplate:
+  loginEndpointAuth:
+    endpoint: /app/login
+    verb: POST
+    contentType: application/x-www-form-urlencoded
+    expectCookies: true

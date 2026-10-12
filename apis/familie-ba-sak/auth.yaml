@@ -1,0 +1,37 @@
+auth:
+  - name: TaskRunner
+    loginEndpointAuth:
+      payloadRaw: "name=TaskRunner&grant_type=client_credentials&code=bar&client_id=bar&client_secret=secret"
+  - name: Veileder
+    loginEndpointAuth:
+      payloadRaw: "name=Veileder&grant_type=client_credentials&code=bar&client_id=bar&client_secret=secret"
+  - name: Saksbehandler
+    loginEndpointAuth:
+      payloadRaw: "name=Saksbehandler&grant_type=client_credentials&code=bar&client_id=bar&client_secret=secret"
+  - name: Beslutter
+    loginEndpointAuth:
+      payloadRaw: "name=Beslutter&grant_type=client_credentials&code=bar&client_id=bar&client_secret=secret"
+  - name: Forvalter
+    loginEndpointAuth:
+      payloadRaw: "name=Forvalter&grant_type=client_credentials&code=bar&client_id=bar&client_secret=secret"
+  - name: Kode6
+    loginEndpointAuth:
+      payloadRaw: "name=Kode6&grant_type=client_credentials&code=bar&client_id=bar&client_secret=secret"
+  - name: Kode7
+    loginEndpointAuth:
+      payloadRaw: "name=Kode7&grant_type=client_credentials&code=bar&client_id=bar&client_secret=secret"
+  - name: System
+    loginEndpointAuth:
+      payloadRaw: "name=System&grant_type=client_credentials&code=bar&client_id=bar&client_secret=secret"
+
+authTemplate:
+    loginEndpointAuth:
+        externalEndpointURL: http://localhost:8083/azuread/token
+        verb: POST
+        contentType: application/x-www-form-urlencoded
+        token:
+            extractFrom: body
+            extractSelector: /access_token
+            sendName: Authorization
+            sendIn: header
+            sendTemplate: "Bearer {token}"

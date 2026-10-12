@@ -1,0 +1,43 @@
+# Payments Public API, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py pay-publicapi
+name: rd-pay-publicapi
+x-dataset:
+  id: pay-publicapi
+  title: Payments Public API
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_11_maven/cs/rest/pay-publicapi
+  upstream:
+    repository: https://github.com/alphagov/pay-publicapi
+    license: MIT
+  language: jvm
+  service: sut-pay-publicapi
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /assets/swagger.json
+  ready: /assets/swagger.json
+  auth:
+    file: auth.yaml
+    user: foo
+    restest:
+      - header:Authorization=Bearer asdfghdasdjlguuolnga94upq3nrd2642sq7uel0oo
+    login: false
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  db:
+    image: redis:7.2.3@sha256:a7cee7c8178ff9b5297cb109e6240f5072cdaaafd775ce6b586c3c704b06458e
+  sut-pay-publicapi:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-pay-publicapi:FINAL@sha256:a14c6d32020ccc306ecff31ba411fc0d9f52d87025b38686beb73978588000e7
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

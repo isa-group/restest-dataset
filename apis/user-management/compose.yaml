@@ -1,0 +1,56 @@
+# User Management, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py user-management
+name: rd-user-management
+x-dataset:
+  id: user-management
+  title: User Management
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_8_maven/cs/rest/original/user-management
+  upstream:
+    repository: https://github.com/andreagiassi/microservice-rbac-user-management
+    license: MIT
+  language: jvm
+  service: sut-user-management
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /v2/api-docs
+  ready: /v2/api-docs
+  auth: null
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  db:
+    environment:
+      MYSQL_DATABASE: users
+      MYSQL_ROOT_PASSWORD: root
+    healthcheck:
+      test:
+        - CMD
+        - mysqladmin
+        - ping
+        - -h
+        - localhost
+      timeout: 30s
+      interval: 30s
+      retries: 3
+    image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+    tmpfs:
+      - /var/lib/mysql
+  sut-user-management:
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-user-management:FINAL@sha256:d27379a26d38680f460399cad114261a7a26aaf0fef265de0860768d3cc93960
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

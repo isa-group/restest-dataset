@@ -1,0 +1,23 @@
+[
+    {
+        "_class": "sk.cyrilgavala.reservationsApi.model.User",
+        "username": "foo",
+        "email": "foo@foo.com",
+        "password": "$2a$10$nEDY5j731yXGnQHyM39PWurJWr1FukegmKYYarK5WOoAMmgDs6D3u",
+        "role": "USER"
+    },
+    {
+        "_class": "sk.cyrilgavala.reservationsApi.model.User",
+        "username": "bar",
+        "email": "bar@foo.com",
+        "password": "$2a$10$nEDY5j731yXGnQHyM39PWurJWr1FukegmKYYarK5WOoAMmgDs6D3u",
+        "role": "USER"
+    },
+    {
+        "_class": "sk.cyrilgavala.reservationsApi.model.User",
+        "username": "admin",
+        "email": "admin@foo.com",
+        "password": "$2a$10$nEDY5j731yXGnQHyM39PWurJWr1FukegmKYYarK5WOoAMmgDs6D3u",
+        "role": "ADMIN"
+    }
+]

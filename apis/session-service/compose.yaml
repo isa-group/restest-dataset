@@ -1,0 +1,40 @@
+# Session Service, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py session-service
+name: rd-session-service
+x-dataset:
+  id: session-service
+  title: Session Service
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_8_maven/cs/rest/original/session-service
+  upstream:
+    repository: https://github.com/cBioPortal/session-service
+    license: not-known license
+  language: jvm
+  service: sut-session-service
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /v2/api-docs
+  ready: /v2/api-docs
+  auth: null
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  db:
+    image: mongo:6.0@sha256:8b6d8f5bbedb25cb73517b65cf99f13aeb75ad5b157a56c479287a840bbad3ac
+    tmpfs:
+      - /data/db
+  sut-session-service:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-session-service:FINAL@sha256:19b7a04e3a282cb44ee5873ebd2b220a3eb5e799c3a047b568d5a51c68b85c26
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

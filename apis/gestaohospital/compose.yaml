@@ -1,0 +1,40 @@
+# Gestao Hospital, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py gestaohospital
+name: rd-gestaohospital
+x-dataset:
+  id: gestaohospital
+  title: Gestao Hospital
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_8_maven/cs/rest-gui/gestaohospital
+  upstream:
+    repository: https://github.com/ValchanOficial/GestaoHospital
+    license: not-known license
+  language: jvm
+  service: sut-gestaohospital
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /v2/api-docs
+  ready: /v2/api-docs
+  auth: null
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  db:
+    image: mongo:6@sha256:8b6d8f5bbedb25cb73517b65cf99f13aeb75ad5b157a56c479287a840bbad3ac
+    tmpfs:
+      - /data/db
+  sut-gestaohospital:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-gestaohospital:FINAL@sha256:67de504919ade92c9717c1a7fc4fdd1a68a375fa9309eeeeb7a3c643b8cd50dc
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

@@ -1,0 +1,36 @@
+# CatWatch, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py catwatch
+name: rd-catwatch
+x-dataset:
+  id: catwatch
+  title: CatWatch
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_8_maven/cs/rest/original/catwatch
+  upstream:
+    repository: https://github.com/zalando-incubator/catwatch
+    license: Apache
+  language: jvm
+  service: sut-catwatch
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /v2/api-docs
+  ready: /v2/api-docs
+  auth: null
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  sut-catwatch:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-catwatch:FINAL@sha256:cd44f53e795bc05dbf888c71363d1fa3a0a1ab30421c378eb551fa4532f3d0ba
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

@@ -1,0 +1,123 @@
+{
+    "interactiveLogin": true,
+    "tokenCallbacks": [
+        {
+            "issuerId": "azuread",
+            "tokenExpiry": 360000,
+            "requestMappings": [
+                {
+                    "requestParam": "name",
+                    "match": "TaskRunner",
+                    "claims": {
+						"groups": ["928636f4-fd0d-4149-978e-a6fb68bb19de"],
+						"name": "Task Runner",
+						"NAVident": "Z0042",
+                        "sub": "subject",
+                        "aud": "some-audience",
+						"tid": "azuread",
+						"azp": "Z0042"
+                    },
+					"typeHeader": "JWT"
+                },
+				{
+                    "requestParam": "name",
+                    "match": "Veileder",
+                    "claims": {
+						"groups": ["93a26831-9866-4410-927b-74ff51a9107c"],
+						"name": "Mock McMockface",
+						"NAVident": "Z0000",
+                        "sub": "subject",
+                        "aud": "some-audience",
+						"tid": "azuread",
+						"azp": "Z0000"
+                    },
+					"typeHeader": "JWT"
+                },
+				{
+                    "requestParam": "name",
+                    "match": "Saksbehandler",
+                    "claims": {
+						"groups": ["d21e00a4-969d-4b28-8782-dc818abfae65"],
+						"name": "Foo Bar",
+						"NAVident": "Z0001",
+                        "sub": "subject",
+                        "aud": "some-audience",
+						"tid": "azuread",
+						"azp": "Z0001"
+                    },
+					"typeHeader": "JWT"
+                },
+				{
+                    "requestParam": "name",
+                    "match": "Beslutter",
+                    "claims": {
+						"groups": ["9449c153-5a1e-44a7-84c6-7cc7a8867233"],
+						"name": "John Smith",
+						"NAVident": "Z0002",
+                        "sub": "subject",
+                        "aud": "some-audience",
+						"tid": "azuread",
+						"azp": "Z0002"
+                    },
+					"typeHeader": "JWT"
+                },
+				{
+                    "requestParam": "name",
+                    "match": "Forvalter",
+                    "claims": {
+						"groups": ["c62e908a-cf20-4ad0-b7b3-3ff6ca4bf38b"],
+						"name": "Mario Rossi",
+						"NAVident": "Z0003",
+                        "sub": "subject",
+                        "aud": "some-audience",
+						"tid": "azuread",
+						"azp": "Z0003"
+                    },
+					"typeHeader": "JWT"
+                },
+				{
+                    "requestParam": "name",
+                    "match": "Kode6",
+                    "claims": {
+						"groups": ["5ef775f2-61f8-4283-bf3d-8d03f428aa14"],
+						"name": "Kode Six",
+						"NAVident": "Z0004",
+                        "sub": "subject",
+                        "aud": "some-audience",
+						"tid": "azuread",
+						"azp": "Z0004"
+                    },
+					"typeHeader": "JWT"
+                },
+				{
+                    "requestParam": "name",
+                    "match": "Kode7",
+                    "claims": {
+						"groups": ["ea930b6b-9397-44d9-b9e6-f4cf527a632a"],
+						"name": "Kode Seven",
+						"NAVident": "Z0005",
+                        "sub": "subject",
+                        "aud": "some-audience",
+						"tid": "azuread",
+						"azp": "Z0005"
+                    },
+					"typeHeader": "JWT"
+                },
+				{
+                    "requestParam": "name",
+                    "match": "System",
+                    "claims": {
+						"groups": [],
+						"name": "The System",
+						"NAVident": "VL",
+                        "sub": "subject",
+                        "aud": "some-audience",
+						"tid": "azuread",
+						"azp": "VL"
+                    },
+					"typeHeader": "JWT"
+                }
+            ]
+        }
+    ]
+}

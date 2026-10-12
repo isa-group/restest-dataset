@@ -1,0 +1,36 @@
+# Spring-batch-rest, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py spring-batch-rest
+name: rd-spring-batch-rest
+x-dataset:
+  id: spring-batch-rest
+  title: Spring-batch-rest
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_8_maven/cs/rest/original/spring-batch-rest
+  upstream:
+    repository: https://github.com/chrisgleissner/spring-batch-rest
+    license: Apache
+  language: jvm
+  service: sut-spring-batch-rest
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /v3/api-docs
+  ready: /v3/api-docs
+  auth: null
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  sut-spring-batch-rest:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-spring-batch-rest:FINAL@sha256:a2c947604466c825b050482874f1bb86bf8ba189d96a058f87d72b6cc2311f5f
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

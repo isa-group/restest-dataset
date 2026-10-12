@@ -1,0 +1,65 @@
+# Spring ECommerce, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py spring-ecommerce
+name: rd-spring-ecommerce
+x-dataset:
+  id: spring-ecommerce
+  title: Spring ECommerce
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_8_maven/cs/rest/original/spring-ecommerce
+  upstream:
+    repository: https://github.com/SaiUpadhyayula/SpringAngularEcommerce
+    license: not-known license
+  language: jvm
+  service: sut-spring-ecommerce
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /v2/api-docs
+  ready: /v2/api-docs
+  auth:
+    file: auth.yaml
+    user: user1
+    restest: []
+    login: true
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  elasticsearch:
+    environment:
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      cluster.name: elasticsearch
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+    image: docker.elastic.co/elasticsearch/elasticsearch:6.8.23@sha256:ca5dac2352e09263e55cccac445d69a0d2eec9c8c26a4c95c3b1430de1f427f2
+    tmpfs:
+      - /usr/share/elasticsearch/data
+  mongodb:
+    environment:
+      ALLOW_EMPTY_PASSWORD: "yes"
+      MONGODB_REPLICA_SET_MODE: primary
+    image: mongo:7.0@sha256:1f995ad6fdb93244a1addab1b58f934a0bc2f5643c38e02f5e9d7f0c7d227a7b
+    tmpfs:
+      - /data/db
+    volumes:
+      - type: bind
+        source: ./files/mongo_import.sh
+        target: /docker-entrypoint-initdb.d/mongo_import.sh
+      - type: bind
+        source: ./files/init.json
+        target: /fixtures/init.json
+  redis:
+    image: redis:7.0.11@sha256:1008c73f08e9f913868e2fa2e843212b62ea5bf3c66435d87bc7a6207bc0f1b4
+  sut-spring-ecommerce:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-spring-ecommerce:FINAL@sha256:db55e06d493fce04ad61275d43e0f09a8d6429ddc1b3603932bd468647db5ab0
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

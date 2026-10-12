@@ -1,0 +1,36 @@
+# Movies XML, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py movies-xml
+name: rd-movies-xml
+x-dataset:
+  id: movies-xml
+  title: Movies XML
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_21_maven/cs/rest/movies-xml
+  upstream:
+    repository: https://github.com/suarezrominajulieta/movies-xml
+    license: LGPL
+  language: jvm
+  service: sut-movies-xml
+  port: 8080
+  document: openapi.json
+  basePath: ""
+  documentServedAt: /v3/api-docs
+  ready: /v3/api-docs
+  auth: null
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  sut-movies-xml:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-movies-xml:FINAL@sha256:b8a0428861b5c73e88339f992dc274201ba20a0c6a858129bb810cb893ac5a3a
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"

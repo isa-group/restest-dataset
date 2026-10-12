@@ -1,0 +1,58 @@
+# Tiltaksgjennomføring, imported from the Web Fuzzing Dataset by tools/import-wfd.py.
+# Regenerate rather than edit: tools/import-wfd.py tiltaksgjennomforing
+name: rd-tiltaksgjennomforing
+x-dataset:
+  id: tiltaksgjennomforing
+  title: "Tiltaksgjennomføring"
+  origin:
+    dataset: wfd
+    repository: https://github.com/WebFuzzing/Dataset
+    commit: b666555842a4547d46026349147a2b8159ee5835
+    path: jdk_17_maven/cs/rest/tiltaksgjennomforing
+  upstream:
+    repository: https://github.com/navikt/tiltaksgjennomforing-api
+    license: MIT
+  language: jvm
+  service: sut-tiltaksgjennomforing
+  port: 8080
+  document: openapi.json
+  basePath: /tiltaksgjennomforing-api
+  documentServedAt: /tiltaksgjennomforing-api/v3/api-docs
+  ready: /tiltaksgjennomforing-api/v3/api-docs
+  auth:
+    file: auth.yaml
+    user: "\"aad\""
+    restest: []
+    login: true
+  coverage:
+    kind: jacoco-tcpserver
+    port: 6300
+  platforms:
+    - linux/amd64
+    - linux/arm64
+services:
+  db:
+    environment:
+      POSTGRES_DB: tiltaksgjennomforing
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_PASSWORD: password
+    image: postgres:13.13@sha256:ef119e5f4d6dd8be3cb83d3c155912e0e564088e957c73d23656726d63cd9300
+    tmpfs:
+      - /var/lib/postgresql/data
+  mock-oauth2-server:
+    environment:
+      JSON_CONFIG_PATH: /app/mockoauth2.json
+      LOG_LEVEL: verbose
+      SERVER_PORT: "8081"
+    image: ghcr.io/navikt/mock-oauth2-server:2.0.1@sha256:2e14a6311b20f61cf71a7ee13b56d81225ee45f0f5eebc5c6f3aaa6e268a6671
+    volumes:
+      - type: bind
+        source: ./files/mockoauth2.json
+        target: /app/mockoauth2.json
+  sut-tiltaksgjennomforing:
+    environment:
+      AUTH_PORT: "8081"
+    image: webfuzzing/wfd-tiltaksgjennomforing:FINAL@sha256:8389f7863c0a8c39002a8e9b36a91ee8bdd830532847c3d24bd785ca56f8136d
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::6300"
