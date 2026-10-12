@@ -22,8 +22,9 @@ x-dataset:
   auth:
     file: auth.yaml
     user: WfdAdmin1
-    restest: []
-    login: true
+    server: null
+    leaveAlone:
+      - logout
   coverage:
     kind: jacoco-tcpserver
     port: 6300

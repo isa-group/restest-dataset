@@ -33,7 +33,8 @@ cd restest-dataset
 
 `run` takes API names and suites (`suite:<name>`, a file in `suites/`; `suite:all` is every API).
 Each run of each API goes into `<out>/<api>/run-<n>/`: RESTest's `report.json` and screen output,
-its exit code, and the API's own log. `campaign.json` records the command, the budget and the
+its exit code, the API's own log, and `credentials.txt`, which says how RESTest was let in (never
+the values). An API that does not start is noted in `start-failed.txt` and the campaign goes on. `campaign.json` records the command, the budget and the
 dataset commit. Anything after `--` is handed to `restest run` as it is:
 
 ```bash
@@ -71,12 +72,38 @@ copies of one, can run side by side.
 | `basePath` | The path of the first address the document declares, where its operations live. It is handed to RESTest as part of `--url`, so that which address RESTest picks from the document never decides where the requests go |
 | `documentServedAt` | Where the running API serves its own document, when it does |
 | `ready` | A path that answers 2XX once the API is ready. When it is null, any answer but 502 or 503 means ready |
-| `auth` | The credentials file, the user taken from it, what is handed to RESTest's `--auth`, and whether that user has to log in, which RESTest does not do by itself |
+| `auth` | The credentials file, the user taken from it (the first, unless another is named), and, when the login goes to a server of its own rather than to the API, which compose service that is and its port. `leaveAlone` names the operations that would end a session a login opened, such as `logout` |
 | `coverage` | How code coverage can be read: the WFD images run a JaCoCo agent as a TCP server on port 6300, published beside the API |
 | `platforms` | The processors the API's image is published for |
 
-Credentials are handed to RESTest only with `./dataset run --auth`. Without it, RESTest is given the
-document and nothing else — its design target — which is also how its runs are best compared.
+## Credentials
+
+`./dataset run` hands RESTest the API's credentials, when it has any, as a user of RESTest would:
+
+- **Fixed** — a key, a token or a Basic header that never changes: given to `--auth` as it is.
+- **Login** — the API wants a user and a password first. Once the API answers, `./dataset` logs in
+  as the credentials file says — the request, its body, and where the token is in the reply or that
+  the reply sets a session cookie — and gives RESTest the token or the cookies. RESTest itself
+  does not log in.
+- **Login at a server of its own** — a stand-in OAuth server or Keycloak inside the compose file.
+  That server is published on `127.0.0.1` too, and the login is sent to it as the API would reach
+  it, so the token names the issuer the API expects.
+
+A login is retried for up to three minutes while the server that answers it is still starting. One
+that fails is written in `credentials.txt` and on the screen, and that run goes on without
+credentials.
+
+A session can be ended by the API itself: RESTest calls `logout` like any other operation, and every
+request after it is refused, since RESTest does not log in again. So when a login opened the
+session, the operations in `leaveAlone` are kept out of the run, through a plan that is RESTest's
+own with `operations.only` added (`plan.yaml` in the run's folder). The importer fills `leaveAlone`
+with the operations whose path says log out or sign out. A plan given after `--` takes precedence,
+and `credentials.txt` then says the session was not protected. RESTest is given one user and does not renew a token, so a token that expires during a
+long run leaves the rest of it refused.
+
+`--no-auth` gives RESTest the document and nothing else. That is RESTest's design target — an
+unknown API, and only its document — and the way to measure what RESTest does on its own.
+`./dataset up <api>` prints the `--auth` options for a run by hand.
 
 ## Suites
 

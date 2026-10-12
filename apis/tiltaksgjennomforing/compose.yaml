@@ -21,9 +21,11 @@ x-dataset:
   ready: /tiltaksgjennomforing-api/v3/api-docs
   auth:
     file: auth.yaml
-    user: "\"aad\""
-    restest: []
-    login: true
+    user: aad
+    server:
+      service: mock-oauth2-server
+      port: 8081
+    leaveAlone: []
   coverage:
     kind: jacoco-tcpserver
     port: 6300
@@ -49,6 +51,8 @@ services:
       - type: bind
         source: ./files/mockoauth2.json
         target: /app/mockoauth2.json
+    ports:
+      - "127.0.0.1::8081"
   sut-tiltaksgjennomforing:
     environment:
       AUTH_PORT: "8081"

@@ -22,9 +22,7 @@ x-dataset:
   auth:
     file: auth.yaml
     user: admin
-    restest:
-      - header:Authorization=Basic YWRtaW46cGFzc3dvcmQ=
-    login: false
+    server: null
   coverage:
     kind: jacoco-tcpserver
     port: 6300

@@ -22,8 +22,8 @@ x-dataset:
   auth:
     file: auth.yaml
     user: user1
-    restest: []
-    login: true
+    server: null
+    leaveAlone: []
   coverage:
     kind: jacoco-tcpserver
     port: 6300

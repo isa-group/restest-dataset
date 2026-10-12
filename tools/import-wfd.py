@@ -118,32 +118,28 @@ def served_path(url):
     return m.group(1) if m else None
 
 
-def auth_for_restest(text):
-    """What RESTest's --auth can be given from a Web Fuzzing Commons auth file.
+def auth_description(text, auth_server):
+    """The x-dataset auth entry: the credentials file, the user ./dataset takes from it (the first),
+    and the service that hands out tokens when the login goes to a server other than the API."""
+    first_user = re.search(r"^ *- name:\s*(.+)$", text, flags=re.M)
+    user = first_user.group(1).strip().strip("'\"") if first_user else None
+    server = auth_server if "externalEndpointURL" in text else None
+    return {"file": "auth.yaml", "user": user, "server": server}
 
-    RESTest takes fixed keys and tokens, so the first user's fixed headers are handed over as they
-    are. A user who must log in first cannot be: RESTest does not log in by itself.
-    """
-    first_user = re.search(r"^( *)- name:", text, flags=re.M)
-    indent = first_user.group(1) if first_user else ""
-    users = re.split(rf"^{indent}- name:", text, flags=re.M)[1:]
-    if not users:
-        return {"file": "auth.yaml", "user": None, "restest": [], "login": False}
-    first = users[0]
-    user = first.splitlines()[0].strip()
-    login = bool(re.search(r"loginEndpoint", text, re.I))
-    headers = []
-    block = re.search(r"fixedHeaders:\s*\n((?:\s+-?\s*(?:name|value):.*\n?)+)", first)
-    if block and not login:
-        pairs = re.findall(r"name:\s*(.+)\n\s*value:\s*(.+)", block.group(1))
-        for header, value in pairs:
-            header, value = header.strip().strip("'\""), value.strip().strip("'\"")
-            if header.lower() == "cookie" and "=" in value:
-                cookie, _, cookie_value = value.partition("=")
-                headers.append(f"cookie:{cookie}={cookie_value}")
-            else:
-                headers.append(f"header:{header}={value}")
-    return {"file": "auth.yaml", "user": user, "restest": headers, "login": login}
+
+def session_enders(document):
+    """Operations that end the session a login opened: logging out with the token or cookie RESTest
+    was given leaves every later request refused, since RESTest does not log in again."""
+    if document.suffix != ".json":
+        return []
+    found = []
+    for path, operations in json.loads(document.read_text(encoding="utf-8")).get("paths", {}).items():
+        if not re.search(r"log-?out|sign-?out", path, re.I):
+            continue
+        for method, operation in operations.items():
+            if method in ("get", "put", "post", "delete", "patch", "head", "options"):
+                found.append(operation.get("operationId") or f"{method.upper()} {path}")
+    return found
 
 
 _digests = {}
@@ -216,6 +212,7 @@ def import_api(name, readme, urls, commit):
     target.mkdir(parents=True)
 
     sut_platforms = None
+    published = []
     for service_name, service in services.items():
         service.pop("networks", None)
         for key in [k for k, v in service.items() if v is None]:
@@ -229,11 +226,17 @@ def import_api(name, readme, urls, commit):
                     d.pop("restart")
         image, platforms = pin(service["image"])
         service["image"] = image
+        # An image built for one processor only is run emulated on the other, rather than refused.
+        if platforms and "linux/arm64" not in platforms and "linux/amd64" in platforms \
+                and "platform" not in service:
+            service["platform"] = "linux/amd64"
         if service_name == sut_name:
             sut_platforms = platforms
             service["ports"] = [f"127.0.0.1::{SUT_PORT}", f"127.0.0.1::{JACOCO_PORT}"]
         else:
-            service.pop("ports", None)
+            ports = service.pop("ports", None)
+            if ports:
+                published.append((service_name, int(ports[0]["target"])))
         for volume in service.get("volumes", []):
             source = volume.get("source", "")
             if volume.get("type") == "bind" and source.startswith("./"):
@@ -254,7 +257,16 @@ def import_api(name, readme, urls, commit):
     auth_source = WFD / "auth" / f"{name}-auth.yaml"
     if auth_source.exists():
         shutil.copy2(auth_source, target / "auth.yaml")
-        auth = auth_for_restest(auth_source.read_text(encoding="utf-8"))
+        text = auth_source.read_text(encoding="utf-8")
+        server = None
+        if "externalEndpointURL" in text:
+            if len(published) != 1:
+                raise ValueError(f"{name}: cannot tell which service hands out tokens: {published}")
+            server = {"service": published[0][0], "port": published[0][1]}
+            services[server["service"]]["ports"] = [f"127.0.0.1::{server['port']}"]
+        auth = auth_description(text, server)
+        if "loginEndpointAuth" in text and document:
+            auth["leaveAlone"] = session_enders(target / document)
 
     entry = readme.get(name, {})
     docs = served_path(urls.get(name))

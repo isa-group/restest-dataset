@@ -21,9 +21,11 @@ x-dataset:
   ready: /v3/api-docs
   auth:
     file: auth.yaml
-    user: "\"ADMIN_1\""
-    restest: []
-    login: true
+    user: ADMIN_1
+    server:
+      service: keycloak
+      port: 8080
+    leaveAlone: []
   coverage:
     kind: jacoco-tcpserver
     port: 6300
@@ -56,6 +58,8 @@ services:
       - type: bind
         source: ./files/microcks-realm-sample.json
         target: /opt/keycloak/data/import/microcks-realm.json
+    ports:
+      - "127.0.0.1::8080"
   mongodb:
     environment:
       ALLOW_EMPTY_PASSWORD: "yes"

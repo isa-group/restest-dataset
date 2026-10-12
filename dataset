@@ -4,7 +4,7 @@
   ./dataset list [--suite NAME]
   ./dataset up <api> [--timeout SECONDS]          start it, wait until it answers, print its address
   ./dataset down <api>                            stop it and throw its data away
-  ./dataset run <api|suite:NAME>... --restest CMD [--budget 60s] [--runs N] [--out DIR] [--auth]
+  ./dataset run <api|suite:NAME>... --restest CMD [--budget 60s] [--runs N] [--out DIR] [--no-auth]
                 [-- <more options for restest run>]
   ./dataset summary <DIR>                         one line per run, from each report.json
 
@@ -104,13 +104,18 @@ def status_of(url):
         return None
 
 
+class StartFailed(Exception):
+    pass
+
+
 def up(api, timeout):
     entry = describe(api)
     compose(api, "down", "--volumes", "--remove-orphans")
     try:
         compose(api, "up", "--detach")
     except subprocess.CalledProcessError as error:
-        fail(f"{api} did not start: {error.stderr.decode(errors='replace').strip()[-2000:]}")
+        down(api)
+        raise StartFailed(f"{api} did not start: {error.stderr.decode(errors='replace').strip()[-2000:]}")
     port = published(api, entry, entry["port"])
     base = f"http://127.0.0.1:{port}"
     ready = entry.get("ready")
@@ -123,7 +128,7 @@ def up(api, timeout):
         if time.monotonic() > deadline:
             logs = compose(api, "logs", "--tail", "40", entry["service"], capture=True)
             compose(api, "down", "--volumes", "--remove-orphans")
-            fail(f"{api} did not answer {ready or '/'} within {timeout}s (last: {status})\n{logs}")
+            raise StartFailed(f"{api} did not answer {ready or '/'} within {timeout}s (last: {status})\n{logs}")
         time.sleep(1)
     return entry, base
 
@@ -132,16 +137,228 @@ def down(api):
     compose(api, "down", "--volumes", "--remove-orphans")
 
 
-def auth_options(api, entry, base):
-    """What to hand RESTest's --auth: the API's own setup script first, else its fixed headers."""
+class AuthFailed(Exception):
+    pass
+
+
+LOGIN_PATIENCE = 180  # seconds a login keeps being retried while its server is still starting
+
+
+def credentials(api, entry, base):
+    """What to hand RESTest's --auth, and a line saying how it was obtained.
+
+    The API's own setup script comes first. Otherwise the user named in x-dataset is read from the
+    API's credentials file (Web Fuzzing Commons format): fixed headers are handed over as they are,
+    and a login is made now, its token or cookies handed over. Values never appear in the line.
+    """
     setup = APIS / api / "setup"
     if setup.is_file():
         env = dict(os.environ, DATASET_URL=base, DATASET_COMPOSE=str(compose_file(api)),
                    DATASET_SERVICE=entry["service"])
         out = subprocess.run([str(setup)], check=True, capture_output=True, text=True, env=env).stdout
-        return [line.strip() for line in out.splitlines() if line.strip()]
+        values = [line.strip() for line in out.splitlines() if line.strip()]
+        return values, f"made by setup: {', '.join(where(v) for v in values)}"
+    user = auth_user(api, entry)
+    if user is None:
+        return [], "none"
+    values = [v for h in user.get("fixedHeaders") or [] for v in header_values(h["name"], h["value"])]
+    login = user.get("loginEndpointAuth")
+    if login:
+        values += log_in(api, entry, base, login)
+        how = f"login as {user.get('name')}"
+    else:
+        how = f"fixed, user {user.get('name')}"
+    return values, f"{how}: {', '.join(where(v) for v in values)}"
+
+
+def where(value):
+    """header:Authorization=secret -> header:Authorization, for saying what was handed over."""
+    return value.split("=", 1)[0]
+
+
+def header_values(name, value):
+    if name.lower() == "cookie":
+        return [f"cookie:{c.strip()}" for c in value.split(";") if "=" in c]
+    return [f"header:{name}={value}"]
+
+
+def credentials_kind(api, entry):
+    """How the API's credentials are obtained, for the list and the catalogue."""
+    if (APIS / api / "setup").is_file():
+        return "made by `setup`"
+    user = auth_user(api, entry)
+    if user is None:
+        return ""
+    login = user.get("loginEndpointAuth")
+    if not login:
+        return "fixed"
+    if login.get("externalEndpointURL"):
+        return f"login at `{entry['auth']['server']['service']}`"
+    return "login, cookies" if login.get("expectCookies") else "login, token"
+
+
+def auth_user(api, entry):
+    """The user x-dataset names, with the file's authTemplate filled in under it."""
     auth = entry.get("auth") or {}
-    return list(auth.get("restest") or [])
+    path = APIS / api / (auth.get("file") or "auth.yaml")
+    if not auth or not path.is_file():
+        return None
+    document = load_yaml(path.read_text(encoding="utf-8")) or {}
+    users = document.get("auth") or []
+    wanted = auth.get("user")
+    user = next((u for u in users if u.get("name") == wanted), users[0] if users else None)
+    if user is None:
+        return None
+    return merged(document.get("authTemplate") or {}, user)
+
+
+def merged(template, user):
+    out = dict(template)
+    for key, value in user.items():
+        out[key] = merged(out[key], value) if isinstance(value, dict) and isinstance(out.get(key), dict) \
+            else value
+    return out
+
+
+def log_in(api, entry, base, login):
+    """Logs in as the credentials file says, and returns what RESTest's --auth takes."""
+    import http.cookiejar
+    from urllib.parse import urlparse
+
+    headers = {"Content-Type": login.get("contentType") or "application/json"}
+    if login.get("externalEndpointURL"):
+        server = (entry.get("auth") or {}).get("server")
+        if not server:
+            raise AuthFailed("the login goes to another server and x-dataset.auth.server names none")
+        external = urlparse(login["externalEndpointURL"])
+        port = published(api, {"service": server["service"]}, server["port"])
+        url = f"http://127.0.0.1:{port}{external.path}" + (f"?{external.query}" if external.query else "")
+        # As the API itself reaches it, so that a server naming itself after the address it was
+        # asked at puts in its tokens the issuer the API expects.
+        headers["Host"] = f"{server['service']}:{server['port']}"
+    else:
+        url = base + login.get("endpoint", "")
+    payload = login.get("payloadRaw")
+    if payload is None and login.get("payloadUserPwd"):
+        fields = login["payloadUserPwd"]
+        payload = json.dumps({fields.get("usernameField", "username"): fields.get("username"),
+                              fields.get("passwordField", "password"): fields.get("password")})
+    request = urllib.request.Request(url, data=(payload or "").encode(), headers=headers,
+                                     method=login.get("verb") or "POST")
+
+    class KeepRedirects(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+
+    # The API can be ready before the server that hands out its tokens is: keep asking a while.
+    deadline = time.monotonic() + LOGIN_PATIENCE
+    while True:
+        jar = http.cookiejar.CookieJar()
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar), KeepRedirects)
+        try:
+            reply = opener.open(request, timeout=30)
+            status, body = reply.status, reply.read()
+        except urllib.error.HTTPError as error:
+            status, body = error.code, error.read()
+        except (urllib.error.URLError, OSError) as error:
+            status, body = None, str(error)
+        if (status is not None and status < 500 and status != 404) or time.monotonic() > deadline:
+            break
+        time.sleep(2)
+    if status is None:
+        raise AuthFailed(f"{url}: {body}")
+    if status >= 400:
+        raise AuthFailed(f"{login.get('verb') or 'POST'} {urlparse(url).path} answered {status}")
+
+    if login.get("expectCookies"):
+        cookies = [f"cookie:{c.name}={c.value}" for c in jar]
+        if not cookies:
+            raise AuthFailed(f"{urlparse(url).path} answered {status} and set no cookie")
+        return cookies
+    token = login.get("token") or {}
+    if token.get("extractFrom", "body") != "body":
+        raise AuthFailed(f"tokens taken from {token.get('extractFrom')!r} are not supported yet")
+    try:
+        value = json.loads(body)
+        for part in (token.get("extractSelector") or "").strip("/").split("/"):
+            if part:
+                value = value[int(part)] if isinstance(value, list) else value[part]
+    except (ValueError, KeyError, IndexError, TypeError):
+        raise AuthFailed(f"no token at {token.get('extractSelector')} in the login's reply")
+    sent = (token.get("sendTemplate") or "{token}").replace("{token}", str(value))
+    place = {"header": "header", "query": "query"}.get(token.get("sendIn") or "header")
+    if not place:
+        raise AuthFailed(f"tokens sent in {token.get('sendIn')!r} are not supported yet")
+    return [f"{place}:{token.get('sendName') or 'Authorization'}={sent}"]
+
+
+def load_yaml(text):
+    """Reads the part of YAML credentials files are written in: maps, lists and scalars by
+    indentation, plain or quoted. Not flow collections, anchors or multi-line strings."""
+    lines = []
+    for raw in text.splitlines():
+        stripped = raw.strip()
+        if stripped and not stripped.startswith("#") and stripped != "---":
+            lines.append([len(raw) - len(raw.lstrip(" ")), stripped])
+    if not lines:
+        return None
+    value, _ = _yaml_block(lines, 0, lines[0][0])
+    return value
+
+
+_YAML_KEY = __import__("re").compile(r"""^("(?:[^"\\]|\\.)*"|'(?:[^']|'')*'|[^\s"'#-][^:]*?|-[^\s:][^:]*?)\s*:(?:\s+|$)(.*)$""")
+
+
+def _yaml_block(lines, i, indent):
+    if lines[i][1] == "-" or lines[i][1].startswith("- "):
+        items = []
+        while i < len(lines) and lines[i][0] == indent and (lines[i][1] == "-" or lines[i][1].startswith("- ")):
+            rest = lines[i][1][1:].lstrip()
+            if not rest:
+                if i + 1 < len(lines) and lines[i + 1][0] > indent:
+                    item, i = _yaml_block(lines, i + 1, lines[i + 1][0])
+                else:
+                    item, i = None, i + 1
+            elif _YAML_KEY.match(rest):
+                inner = indent + len(lines[i][1]) - len(rest)
+                lines[i] = [inner, rest]
+                item, i = _yaml_block(lines, i, inner)
+            else:
+                item, i = _yaml_scalar(rest), i + 1
+            items.append(item)
+        return items, i
+    result = {}
+    while i < len(lines) and lines[i][0] == indent:
+        match = _YAML_KEY.match(lines[i][1])
+        if not match:
+            raise ValueError(f"cannot read line: {lines[i][1]!r}")
+        key, rest = _yaml_scalar(match.group(1)), match.group(2).strip()
+        i += 1
+        if rest:
+            result[key] = _yaml_scalar(rest)
+        elif i < len(lines) and (lines[i][0] > indent or
+                                 (lines[i][0] == indent and lines[i][1].startswith("- "))):
+            result[key], i = _yaml_block(lines, i, lines[i][0])
+        else:
+            result[key] = None
+    return result, i
+
+
+def _yaml_scalar(text):
+    if text.startswith('"') and text.endswith('"') and len(text) >= 2:
+        return json.loads(text)
+    if text.startswith("'") and text.endswith("'") and len(text) >= 2:
+        return text[1:-1].replace("''", "'")
+    if text in ("true", "True"):
+        return True
+    if text in ("false", "False"):
+        return False
+    if text in ("null", "~"):
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        return text
 
 
 # -------------------------------------------------------------------------------------------- runs
@@ -172,12 +389,33 @@ def run(args, extra):
             target.mkdir(parents=True, exist_ok=True)
             print(f"\n== {api} run {n}/{args.runs}", flush=True)
             started = time.monotonic()
-            entry, base = up(api, args.timeout)
+            try:
+                entry, base = up(api, args.timeout)
+            except StartFailed as error:
+                (target / "start-failed.txt").write_text(f"{error}\n", encoding="utf-8")
+                print(f"   did not start: {str(error).splitlines()[0][:300]}", flush=True)
+                continue
             print(f"   up at {base} after {time.monotonic() - started:.0f}s", flush=True)
             try:
-                options = []
+                options, how = [], "not asked for (--no-auth)"
                 if args.auth:
-                    options = [o for value in auth_options(api, entry, base) for o in ("--auth", value)]
+                    try:
+                        values, how = credentials(api, entry, base)
+                        options = [o for value in values for o in ("--auth", value)]
+                    except AuthFailed as error:
+                        how = f"FAILED, run without credentials: {error}"
+                leave_alone = (entry.get("auth") or {}).get("leaveAlone") or []
+                if options and leave_alone:
+                    if "--campaign" in extra:
+                        how += f"; NOT left alone, --campaign was given: {', '.join(leave_alone)}"
+                    else:
+                        plan = target / "plan.yaml"
+                        plan.write_text(plan_without(restest, APIS / api / entry["document"], leave_alone),
+                                        encoding="utf-8")
+                        options += ["--campaign", str(plan)]
+                        how += f"; left alone, so the session lasts: {', '.join(leave_alone)}"
+                (target / "credentials.txt").write_text(how + "\n", encoding="utf-8")
+                print(f"   credentials: {how}", flush=True)
                 document = APIS / api / entry["document"]
                 url = base + (entry.get("basePath") or "")
                 command = [*restest, "run", str(document), "--url", url, "--budget", args.budget,
@@ -193,6 +431,27 @@ def run(args, extra):
                 down(api)
     print()
     summary(out)
+
+
+_default_plans = {}
+
+
+def plan_without(restest, document, leave_alone):
+    """The plan RESTest carries, kept off the operations named: they would end the session."""
+    key = tuple(restest)
+    if key not in _default_plans:
+        _default_plans[key] = subprocess.run([*restest, "run", "--print-campaign"], check=True,
+                                             capture_output=True, text=True).stdout
+    names = []
+    for path, operations in json.loads(document.read_text(encoding="utf-8")).get("paths", {}).items():
+        for method, operation in operations.items():
+            if method in ("get", "put", "post", "delete", "patch", "head", "options", "trace"):
+                name = operation.get("operationId") or f"{method.upper()} {path}"
+                if name not in leave_alone and f"{method.upper()} {path}" not in leave_alone:
+                    names.append(name)
+    return (_default_plans[key].rstrip() + "\n\n# Added by ./dataset: every operation but "
+            + ", ".join(leave_alone) + ", which would end the session RESTest was given.\n"
+            + "operations:\n  only: " + json.dumps(names) + "\n")
 
 
 def line_of(run_dir):
@@ -227,8 +486,15 @@ def summary(out):
             "operations_with_faults": totals.get("operationsWithFaults"),
             "elapsed": totals.get("elapsed"),
         })
+    for failed in sorted(out.glob("*/run-*/start-failed.txt")):
+        rows.append({"api": failed.parent.parent.name, "run": failed.parent.name,
+                     "restest": None, "requests": "did not start"})
     if not rows:
         fail(f"no report.json under {out}")
+    for row in rows:
+        for key in ("operations", "2xx", "4xx", "5xx", "operations_500", "faults", "fault_kinds",
+                    "operations_with_faults", "elapsed"):
+            row.setdefault(key, None)
     with open(out / "summary.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0]))
         writer.writeheader()
@@ -246,15 +512,7 @@ def catalogue(apis):
     print("|---|---|---|---|---|---|")
     for api in apis:
         entry = describe(api)
-        auth = entry.get("auth") or {}
-        if (APIS / api / "setup").is_file():
-            credentials = "made by `setup`"
-        elif auth.get("restest"):
-            credentials = "fixed, `--auth`"
-        elif auth.get("login"):
-            credentials = "by login (not handed over)"
-        else:
-            credentials = ""
+        credentials = credentials_kind(api, entry)
         upstream = entry["upstream"].get("repository")
         print(f"| [`{api}`](apis/{api}/compose.yaml) | {entry['title']} | {entry['upstream']['license']} "
               f"| {entry['origin']['dataset']} | {f'<{upstream}>' if upstream else ''} | {credentials} |")
@@ -290,8 +548,8 @@ def main():
     p.add_argument("--runs", type=int, default=1)
     p.add_argument("--out")
     p.add_argument("--timeout", type=int, default=600, help="seconds an API is given to start")
-    p.add_argument("--auth", action="store_true",
-                   help="hand RESTest the API's credentials, when the dataset has any")
+    p.add_argument("--no-auth", dest="auth", action="store_false",
+                   help="give RESTest no credentials, only the document")
 
     p = commands.add_parser("summary", help="one line per run, from each report.json")
     p.add_argument("out")
@@ -302,20 +560,21 @@ def main():
     elif args.command == "list":
         for api in (suite(args.suite) if args.suite else all_apis()):
             entry = describe(api)
-            auth = entry.get("auth") or {}
-            notes = []
-            if auth.get("restest"):
-                notes.append("auth")
-            elif auth.get("login"):
-                notes.append("auth by login (not handed to RESTest)")
-            if (APIS / api / "setup").is_file():
-                notes.append("setup")
+            notes = [credentials_kind(api, entry)]
             print(f"{api:24} {entry['title'][:36]:36} {entry['upstream']['license'][:26]:26} "
                   f"{entry['origin']['dataset']:12} {', '.join(notes)}")
     elif args.command == "up":
-        entry, base = up(args.api, args.timeout)
+        try:
+            entry, base = up(args.api, args.timeout)
+        except StartFailed as error:
+            fail(str(error))
         print(base)
-        for value in auth_options(args.api, entry, base):
+        try:
+            values, how = credentials(args.api, entry, base)
+        except AuthFailed as error:
+            values, how = [], f"FAILED: {error}"
+        print(f"# credentials: {how}", file=sys.stderr)
+        for value in values:
             print(f"--auth {shlex.quote(value)}")
     elif args.command == "down":
         down(args.api)
