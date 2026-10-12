@@ -134,10 +134,6 @@ theirs. Please cite them when you use these APIs:
 > Research**. In *IEEE International Conference on Software Testing, Verification and Validation
 > (ICST)*, 2023.
 
-The idea of showing a tool's results on a public set of open-source APIs comes from the
-[Schemathesis Workbench](https://workbench.schemathesis.io/), whose list of real-world APIs is also
-where the next additions to this dataset are likely to come from.
-
 ## Licence
 
 This repository's own files — the scripts, the compose files written here, the documentation — are
