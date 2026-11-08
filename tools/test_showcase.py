@@ -3,6 +3,8 @@
   python3 -m unittest discover -s tools
 """
 
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -38,9 +40,9 @@ class Campaign(unittest.TestCase):
             write(folder / name, text)
         return folder
 
-    def entry(self, api, folder):
+    def entry(self, api, folder, restest=None):
         return showcase.entry(run_dir=folder, api=api, version=VERSION, started="2026-11-08T10:00:00Z",
-                              runner="ubuntu-24.04", restest=None, into=self.root / "artifacts" / f"run-{api}")
+                              runner="ubuntu-24.04", restest=restest, into=self.root / "artifacts" / f"run-{api}")
 
 
 class Entry(Campaign):
@@ -115,7 +117,18 @@ class Entry(Campaign):
         record = self.entry("early", folder)
 
         self.assertEqual("noReport", record["outcome"])
-        self.assertTrue(record["reason"].endswith(": KeyError: 'paths'"), record["reason"])
+        self.assertEqual("RESTest never started: a step before it failed: KeyError: 'paths'", record["reason"])
+
+    def test_the_runner_names_the_java_restest_runs_on_by_its_version_alone(self):
+        restest = self.root / "restest"
+        write(restest, "#!/bin/sh\n"
+                       "echo 'RESTest 2.4.0'\n"
+                       "echo 'Java 21.0.9 (Eclipse Adoptium), Linux 6.8.0 amd64'\n")
+        restest.chmod(0o755)
+
+        record = self.entry("petstore", self.run_dir("petstore", {"report.json": report()}), restest=str(restest))
+
+        self.assertEqual("21.0.9", record["runner"]["java"])
 
     def test_a_report_by_another_version_than_the_campaigns_stops_the_job(self):
         folder = self.run_dir("other", {"report.json": report("2.3.0"), "exit-code": "0\n"})
@@ -172,9 +185,11 @@ class Manifest(Campaign):
     def test_an_api_whose_job_left_nothing_stops_the_manifest_and_is_named(self):
         self.entry("petstore", self.run_dir("petstore", {"report.json": report(), "exit-code": "0\n"}))
 
-        with self.assertRaises(SystemExit):
+        said = io.StringIO()
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(said):
             self.manifest([{"id": "petstore", "title": "P", "upstream": {"license": None, "repository": None}},
                            {"id": "lost", "title": "L", "upstream": {"license": None, "repository": None}}])
+        self.assertIn("no entry for lost:", said.getvalue())
         self.assertFalse((self.root / "release" / "manifest.json").exists())
 
     def test_budgets_are_written_as_report_json_writes_lengths_of_time(self):

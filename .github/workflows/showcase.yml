@@ -61,6 +61,10 @@ jobs:
         env:
           SEED: ${{ inputs.seed }}
         run: |
+          if [[ $GITHUB_REF != refs/heads/main ]]; then
+            echo "::error::A campaign runs from main, so that its release is made from a commit of main"
+            exit 1
+          fi
           if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::The version is a released RESTest's, such as 2.5.0"
             exit 1
@@ -96,8 +100,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "showcase-v$VERSION" > /dev/null 2>&1; then
+          if said=$(gh release view "showcase-v$VERSION" 2>&1 > /dev/null); then
             echo "::error::showcase-v$VERSION exists already, as a draft or published. Delete the draft to run the campaign again; a published campaign is never replaced"
+            exit 1
+          elif [[ $said != *"release not found"* ]]; then
+            echo "$said"
+            echo "::error::Could not tell whether showcase-v$VERSION exists"
             exit 1
           fi
 
@@ -139,8 +147,8 @@ jobs:
       API: ${{ matrix.api }}
       RUNNER: ${{ matrix.runner }}
       RUN: out/${{ matrix.api }}/run-1
-      RESTEST: restest-${{ inputs.version }}/bin/restest
-      HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+      RESTEST: restest/restest-${{ inputs.version }}/bin/restest
+      HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - name: Note when the job started
         id: started
@@ -162,7 +170,8 @@ jobs:
         run: |
           gh release download "v$VERSION" --repo isa-group/RESTest --pattern "restest-$VERSION.tgz"
           echo "$SHA256  restest-$VERSION.tgz" | sha256sum --check
-          tar -xzf "restest-$VERSION.tgz"
+          mkdir restest
+          tar -xzf "restest-$VERSION.tgz" -C restest
 
       # Some APIs write a hundred megabytes of log a minute while they are tested, which Docker keeps on
       # the runner's disk; within an hour that would fill it.
@@ -174,8 +183,8 @@ jobs:
           sudo mv daemon.json "$config"
           sudo systemctl restart docker
 
-      # The secrets reach this step alone, docker login reads the token from its input, and the job
-      # logs out once the images are pulled: nothing the dataset starts, RESTest included, can see them.
+      # The secrets are in this step's environment alone, docker login reads the token from its input,
+      # and the job logs out once the images are pulled, before anything of the dataset runs.
       - name: Log in to Docker Hub, when the repository has its secrets
         if: env.HAS_DOCKERHUB == 'true'
         env:
@@ -269,8 +278,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "showcase-v$VERSION" > /dev/null 2>&1; then
+          if said=$(gh release view "showcase-v$VERSION" 2>&1 > /dev/null); then
             echo "::error::showcase-v$VERSION exists already. Delete the draft, then run the failed jobs again"
+            exit 1
+          elif [[ $said != *"release not found"* ]]; then
+            echo "$said"
+            echo "::error::Could not tell whether showcase-v$VERSION exists"
             exit 1
           fi
           gh release create "showcase-v$VERSION" release/* --draft --target "$GITHUB_SHA" \

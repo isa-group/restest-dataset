@@ -71,11 +71,15 @@ def outcome_of(run_dir, version, exit_code):
         return "ran", None
     if (run_dir / "start-failed.txt").is_file():
         return "apiDidNotStart", first_line(run_dir / "start-failed.txt")
-    last = last_line(run_dir / "restest.log") or last_line(run_dir.parent.parent / "dataset.log")
     if exit_code is not None:
-        reason = f"RESTest ended with {exit_code} and left no report"
+        reason, last = f"RESTest ended with {exit_code} and left no report", last_line(run_dir / "restest.log")
+    elif (run_dir / "restest.log").is_file():
+        reason, last = ("RESTest did not finish: it ran out of time, or was stopped",
+                        last_line(run_dir / "restest.log"))
     else:
-        reason = "RESTest did not finish: it ran out of time, or the run stopped before it ended"
+        # The workflow keeps what ./dataset printed beside the APIs' folders.
+        reason, last = ("RESTest never started: a step before it failed",
+                        last_line(run_dir.parent.parent / "dataset.log"))
     return "noReport", f"{reason}: {last}" if last else reason
 
 
@@ -90,8 +94,9 @@ def machine(runner, restest, where):
     if restest:
         try:
             out = subprocess.run([*restest, "version"], capture_output=True, text=True, timeout=60).stdout
-            java = next((line[len("Java "):].strip() for line in out.splitlines() if line.startswith("Java ")),
-                        None)
+            # "Java 21.0.9 (Eclipse Adoptium), Linux 6.8.0 amd64": the version alone, as the image
+            # says the rest.
+            java = next((line.split()[1] for line in out.splitlines() if line.startswith("Java ")), None)
         except (OSError, subprocess.SubprocessError):
             pass
     image = " ".join(v for v in (os.environ.get("ImageOS"), os.environ.get("ImageVersion")) if v) or None
@@ -144,7 +149,7 @@ def manifest(*, artifacts, apis, version, archive_sha256, budget, seed, started,
     described = json.loads(Path(apis).read_text(encoding="utf-8"))
     missing = [a["id"] for a in described if not (artifacts / f"run-{a['id']}" / "entry.json").is_file()]
     if missing:
-        fail(f"no entry for {', '.join(missing)}: their jobs left nothing behind; run them again")
+        fail(f"no entry for {', '.join(missing)}: their jobs left nothing behind, as their logs say")
     out.mkdir(parents=True, exist_ok=True)
     rows, runners = [], []
     for api in described:

@@ -141,8 +141,8 @@ A suite is a text file in `suites/`, one API per line, `#` for comments.
 What RESTest finds on these APIs is shown on its website, one campaign for each released version. A
 campaign is the workflow [`showcase.yml`](.github/workflows/showcase.yml): it runs a released RESTest
 against every API, each started from scratch in a job of its own on GitHub's runners, and ends in a
-draft release of this repository, `showcase-v<version>`. Someone who can write here launches it once
-the version is published:
+draft release of this repository, `showcase-v<version>`. Someone who can write here launches it from
+`main` once the version is published:
 
 ```bash
 gh workflow run showcase.yml -f version=2.5.0 -f budget=15m
@@ -161,8 +161,8 @@ What bounds a campaign is GitHub's:
   hours.
 - GitHub's free plan runs 20 jobs at once across the whole organisation. Ten APIs are tested at a time,
   and the other ten places are left to the builds of the organisation's other repositories.
-- A public repository's runners have 4 CPUs and 16 GB of memory. The manifest says what each campaign's
-  jobs had, and how much disk was left.
+- A public repository's runners have 4 CPUs and 16 GB of memory. The manifest says what the campaign's
+  first job had, and how much disk it had left.
 - Some APIs write a hundred megabytes of log a minute while they are tested. Each container's log is
   kept under 200 MB, so that the runner's disk does not fill.
 
@@ -177,11 +177,14 @@ A second campaign of a version stops at its first step while a release of it exi
 published: a published campaign is never replaced.
 
 **When a job fails.** The release is drafted whatever became of each API, and the manifest says
-what that was. An API that does not answer in time leaves its job green. A job goes red when its
-images could not be pulled after three tries, when RESTest ended without a report, or when the
-archive could not be downloaded. To try those APIs again with the same seed, delete the draft
-(`gh release delete showcase-v2.5.0`) and choose "Re-run failed jobs" on the run: the other APIs'
-results are kept, and the draft is made again.
+what that was. A job goes red when something kept RESTest from testing its API: its images could not
+be pulled after three tries, RESTest ended without a report or ran out of time, or a step before it
+failed, such as downloading the archive or logging in to Docker Hub. An API that does not answer in
+time leaves its job green: that is what the API did. To try the red ones again with the same seed,
+delete the draft (`gh release delete showcase-v2.5.0`) and choose "Re-run failed jobs" on the run:
+the other APIs' results are kept, and the draft is made again. To try a green one again, delete the
+draft and choose "Re-run this job" on that API's job. A report written by another version than the
+campaign's stops its job and the draft, since it means the wrong archive was tested.
 
 **What a run keeps besides the release.** For 30 days, each job keeps, as an artifact of the run:
 its entry for the manifest, both reports, RESTest's screen output and the last 2,000 lines of the
@@ -192,7 +195,7 @@ key it was handed as a mask. `credentials.txt` never holds values.
 **Docker Hub.** The images are pulled without an account. If Docker Hub's limit on such pulls gets in
 the way, give the repository the secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`, a read-only
 access token: each job then logs in to pull its API's images, and logs out before the API starts, so
-that nothing the dataset starts can read them.
+that the token is in no file while the API and RESTest run.
 
 **The manifest** is what the website reads:
 
