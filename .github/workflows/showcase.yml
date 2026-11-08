@@ -96,7 +96,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "showcase-v$VERSION" --json isDraft > /dev/null 2>&1; then
+          if gh release view "showcase-v$VERSION" > /dev/null 2>&1; then
             echo "::error::showcase-v$VERSION exists already, as a draft or published. Delete the draft to run the campaign again; a published campaign is never replaced"
             exit 1
           fi
@@ -174,8 +174,8 @@ jobs:
           sudo mv daemon.json "$config"
           sudo systemctl restart docker
 
-      # The secrets reach this step alone, and docker login reads the token from its input, so that
-      # nothing the dataset starts, RESTest included, can see them.
+      # The secrets reach this step alone, docker login reads the token from its input, and the job
+      # logs out once the images are pulled: nothing the dataset starts, RESTest included, can see them.
       - name: Log in to Docker Hub, when the repository has its secrets
         if: env.HAS_DOCKERHUB == 'true'
         env:
@@ -200,6 +200,12 @@ jobs:
           grep . pull.err | tail -n 1 > "$RUN/pull-failed.txt"
           exit 1
 
+      - name: Log out of Docker Hub
+        if: ${{ always() && env.HAS_DOCKERHUB == 'true' }}
+        run: docker logout
+
+      # One API to a job, so ./dataset run fails exactly when the API started and RESTest left no
+      # report; an API that did not answer in time leaves the job green, as the README says.
       - name: Test the API
         timeout-minutes: ${{ fromJSON(needs.plan.outputs.minutes) }}
         env:
@@ -225,10 +231,6 @@ jobs:
           # A job run again replaces what its failed attempt left.
           overwrite: true
           if-no-files-found: error
-
-      - name: Log out of Docker Hub
-        if: ${{ always() && env.HAS_DOCKERHUB == 'true' }}
-        run: docker logout
 
   publish:
     name: Draft the release
@@ -267,7 +269,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "showcase-v$VERSION" --json isDraft > /dev/null 2>&1; then
+          if gh release view "showcase-v$VERSION" > /dev/null 2>&1; then
             echo "::error::showcase-v$VERSION exists already. Delete the draft, then run the failed jobs again"
             exit 1
           fi

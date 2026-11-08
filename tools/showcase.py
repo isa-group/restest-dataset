@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 FORMAT = 1
-API_LOG_LINES = 2000  # the end of the API's own log is kept, where a failure to start shows
+API_LOG_LINES = 2000  # the end of the API's own log is kept, where what stopped the run shows
 
 
 def fail(message):
@@ -59,27 +59,24 @@ def tail(path, count):
 
 # -------------------------------------------------------------------------------------------- entry
 
-def outcome_of(run_dir, version):
-    """What became of the API's run: its outcome, the reason when there is no report, and RESTest's
-    exit code when it ended."""
-    code = first_line(run_dir / "exit-code")
-    exit_code = int(code) if code and code.lstrip("-").isdigit() else None
+def outcome_of(run_dir, version, exit_code):
+    """What became of the API's run, and the reason when it left no report."""
     if (run_dir / "pull-failed.txt").is_file():
-        return "imagesNotPulled", first_line(run_dir / "pull-failed.txt"), None
+        return "imagesNotPulled", first_line(run_dir / "pull-failed.txt")
     report = run_dir / "report.json"
     if report.is_file():
         written_by = (json.loads(report.read_text(encoding="utf-8")).get("tool") or {}).get("version")
         if written_by != version:
             fail(f"{report} was written by RESTest {written_by}, and the campaign is of {version}")
-        return "ran", None, exit_code
+        return "ran", None
     if (run_dir / "start-failed.txt").is_file():
-        return "apiDidNotStart", first_line(run_dir / "start-failed.txt"), None
+        return "apiDidNotStart", first_line(run_dir / "start-failed.txt")
     last = last_line(run_dir / "restest.log") or last_line(run_dir.parent.parent / "dataset.log")
     if exit_code is not None:
         reason = f"RESTest ended with {exit_code} and left no report"
     else:
         reason = "RESTest did not finish: it ran out of time, or the run stopped before it ended"
-    return "noReport", f"{reason}: {last}" if last else reason, exit_code
+    return "noReport", f"{reason}: {last}" if last else reason
 
 
 def machine(runner, restest, where):
@@ -96,17 +93,19 @@ def machine(runner, restest, where):
             java = next((line[len("Java "):].strip() for line in out.splitlines() if line.startswith("Java ")),
                         None)
         except (OSError, subprocess.SubprocessError):
-            java = None
+            pass
     image = " ".join(v for v in (os.environ.get("ImageOS"), os.environ.get("ImageVersion")) if v) or None
     return {"label": runner, "image": image, "cpus": os.cpu_count(), "memoryGiB": memory,
             "freeDiskGiB": round(shutil.disk_usage(where).free / 2 ** 30), "java": java}
 
 
-def entry(run_dir, api, version, started, runner, restest, into):
+def entry(*, run_dir, api, version, started, runner, restest, into):
     """Writes into `into` the API's entry.json and the files the campaign keeps of its run."""
     run_dir, into = Path(run_dir), Path(into)
     into.mkdir(parents=True, exist_ok=True)
-    outcome, reason, exit_code = outcome_of(run_dir, version)
+    code = first_line(run_dir / "exit-code")
+    exit_code = int(code) if code else None
+    outcome, reason = outcome_of(run_dir, version, exit_code)
     for name in ("report.json", "report.html", "restest.log"):
         if (run_dir / name).is_file():
             shutil.copyfile(run_dir / name, into / name)
@@ -122,7 +121,7 @@ def entry(run_dir, api, version, started, runner, restest, into):
         "leftAlone": first_line(run_dir / "left-alone.txt"),
         "startedAt": started,
         "finishedAt": now(),
-        "runner": machine(runner, restest, run_dir if run_dir.exists() else into),
+        "runner": machine(runner, shlex.split(restest) if restest else None, into),
     }
     (into / "entry.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     return record
@@ -131,14 +130,13 @@ def entry(run_dir, api, version, started, runner, restest, into):
 # ----------------------------------------------------------------------------------------- manifest
 
 def iso_duration(budget):
-    """15m -> PT15M, as report.json writes lengths of time."""
-    match = re.fullmatch(r"([1-9][0-9]*)([smh])", budget)
-    if not match:
-        fail(f"{budget!r} is not a budget such as 90s, 15m or 1h")
-    return f"PT{match.group(1)}{match.group(2).upper()}"
+    """15m -> PT15M and 90m -> PT1H30M, as report.json writes lengths of time."""
+    seconds = int(budget[:-1]) * {"s": 1, "m": 60, "h": 3600}[budget[-1]]
+    hours, minutes, seconds = seconds // 3600, seconds % 3600 // 60, seconds % 60
+    return "PT" + "".join(f"{n}{unit}" for n, unit in ((hours, "H"), (minutes, "M"), (seconds, "S")) if n)
 
 
-def manifest(artifacts, apis, version, archive_sha256, budget, seed, started, repository, commit,
+def manifest(*, artifacts, apis, version, archive_sha256, budget, seed, started, repository, commit,
              workflow_run, out, notes):
     """Writes into `out` the release's manifest.json and each API's two reports, and the release's
     notes into `notes`. Fails when an API of the campaign left no entry."""
@@ -148,37 +146,25 @@ def manifest(artifacts, apis, version, archive_sha256, budget, seed, started, re
     if missing:
         fail(f"no entry for {', '.join(missing)}: their jobs left nothing behind; run them again")
     out.mkdir(parents=True, exist_ok=True)
-    rows, runner = [], None
+    rows, runners = [], []
     for api in described:
         folder = artifacts / f"run-{api['id']}"
         record = json.loads((folder / "entry.json").read_text(encoding="utf-8"))
-        runner = runner or record["runner"]
+        runners.append(record.pop("runner"))
         assets = {}
         for name, key in (("report.json", "report"), ("report.html", "page")):
             assets[key] = None
             if (folder / name).is_file():
                 assets[key] = f"{api['id']}.{name}"
                 shutil.copyfile(folder / name, out / assets[key])
-        rows.append({
-            "id": api["id"],
-            "title": api["title"],
-            "license": (api.get("upstream") or {}).get("license"),
-            "upstream": (api.get("upstream") or {}).get("repository"),
-            "outcome": record["outcome"],
-            "reason": record["reason"],
-            "exitCode": record["exitCode"],
-            "credentials": record["credentials"],
-            "leftAlone": record["leftAlone"],
-            "startedAt": record["startedAt"],
-            "finishedAt": record["finishedAt"],
-            **assets,
-        })
+        rows.append({"id": api["id"], "title": api["title"], "license": api["upstream"]["license"],
+                     "upstream": api["upstream"]["repository"], **record, **assets})
     document = {
         "format": FORMAT,
         "restest": {"version": version, "archive": f"restest-{version}.tgz", "sha256": archive_sha256},
         "budget": iso_duration(budget),
-        "seed": str(seed),
-        "runner": runner,
+        "seed": seed,
+        "runner": runners[0],
         "startedAt": started,
         "finishedAt": now(),
         "dataset": {"repository": repository, "commit": commit},
@@ -186,20 +172,19 @@ def manifest(artifacts, apis, version, archive_sha256, budget, seed, started, re
         "apis": rows,
     }
     (out / "manifest.json").write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-    Path(notes).write_text(release_notes(document), encoding="utf-8")
+    Path(notes).write_text(release_notes(document, budget), encoding="utf-8")
     return document
 
 
-def release_notes(document):
+def release_notes(document, budget):
     counts = collections.Counter(row["outcome"] for row in document["apis"])
     said = {"ran": "tested", "apiDidNotStart": "did not start", "imagesNotPulled": "could not be pulled",
             "noReport": "left no report"}
     outcomes = ", ".join(f"{counts[k]} {v}" for k, v in said.items() if counts[k])
-    runner = document["runner"] or {}
+    runner = document["runner"]
     return (f"RESTest {document['restest']['version']} on the {len(document['apis'])} APIs of this dataset "
-            f"({outcomes}), {document['budget'][2:].lower()} each with seed {document['seed']}, on GitHub's "
-            f"{runner.get('label')} runners ({runner.get('cpus')} CPUs, {runner.get('memoryGiB')} GiB), "
-            f"started {document['startedAt']}.\n\n"
+            f"({outcomes}), {budget} each with seed {document['seed']}, on GitHub's {runner['label']} "
+            f"runners ({runner['cpus']} CPUs, {runner['memoryGiB']} GiB), started {document['startedAt']}.\n\n"
             "`manifest.json` says how each API went; `<api>.report.html` is RESTest's report of that API, "
             "and `<api>.report.json` the same as data.\n")
 
@@ -222,16 +207,13 @@ def main(argv=None):
                    "--repository", "--commit", "--workflow-run", "--out", "--notes"):
         p.add_argument(option, required=True)
 
-    args = parser.parse_args(argv)
-    if args.command == "entry":
-        record = entry(args.run_dir, args.api, args.version, args.started, args.runner,
-                       shlex.split(args.restest) if args.restest else None, args.into)
-        print(f"{args.api}: {record['outcome']}" + (f" ({record['reason']})" if record["reason"] else ""))
+    args = vars(parser.parse_args(argv))
+    if args.pop("command") == "entry":
+        record = entry(**args)
+        print(f"{record['id']}: {record['outcome']}" + (f" ({record['reason']})" if record["reason"] else ""))
     else:
-        document = manifest(args.artifacts, args.apis, args.version, args.archive_sha256, args.budget,
-                            args.seed, args.started, args.repository, args.commit, args.workflow_run,
-                            args.out, args.notes)
-        print(f"{len(document['apis'])} APIs in {Path(args.out) / 'manifest.json'}")
+        document = manifest(**args)
+        print(f"{len(document['apis'])} APIs in {Path(args['out']) / 'manifest.json'}")
 
 
 if __name__ == "__main__":

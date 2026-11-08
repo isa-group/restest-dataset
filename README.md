@@ -191,7 +191,8 @@ key it was handed as a mask. `credentials.txt` never holds values.
 
 **Docker Hub.** The images are pulled without an account. If Docker Hub's limit on such pulls gets in
 the way, give the repository the secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`, a read-only
-access token: the jobs then log in, and only the step that logs in sees them.
+access token: each job then logs in to pull its API's images, and logs out before the API starts, so
+that nothing the dataset starts can read them.
 
 **The manifest** is what the website reads:
 

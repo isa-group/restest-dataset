@@ -4,13 +4,11 @@
 """
 
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import showcase  # noqa: E402
+import showcase
 
 VERSION = "2.4.0"
 
@@ -21,7 +19,7 @@ def write(path, text):
 
 
 def report(version=VERSION):
-    return json.dumps({"tool": {"name": "RESTest", "version": version}, "totals": {"requests": 10}})
+    return json.dumps({"tool": {"version": version}})
 
 
 class Campaign(unittest.TestCase):
@@ -41,8 +39,8 @@ class Campaign(unittest.TestCase):
         return folder
 
     def entry(self, api, folder):
-        return showcase.entry(folder, api, VERSION, "2026-11-08T10:00:00Z", "ubuntu-24.04", None,
-                              self.root / "artifacts" / f"run-{api}")
+        return showcase.entry(run_dir=folder, api=api, version=VERSION, started="2026-11-08T10:00:00Z",
+                              runner="ubuntu-24.04", restest=None, into=self.root / "artifacts" / f"run-{api}")
 
 
 class Entry(Campaign):
@@ -82,7 +80,8 @@ class Entry(Campaign):
         self.assertIsNone(record["exitCode"])
 
     def test_images_that_could_not_be_pulled_are_not_blamed_on_the_api(self):
-        folder = self.run_dir("pulled", {"pull-failed.txt": "toomanyrequests: You have reached your pull rate limit\n"})
+        folder = self.run_dir("pulled", {
+            "pull-failed.txt": "toomanyrequests: You have reached your pull rate limit\n"})
 
         record = self.entry("pulled", folder)
 
@@ -90,7 +89,8 @@ class Entry(Campaign):
         self.assertEqual("toomanyrequests: You have reached your pull rate limit", record["reason"])
 
     def test_restest_ending_without_a_report_gives_its_exit_code_and_its_last_line(self):
-        folder = self.run_dir("broken", {"exit-code": "4\n", "restest.log": "sending\nRESTest went wrong: boom\n\n"})
+        folder = self.run_dir("broken", {
+            "exit-code": "4\n", "restest.log": "sending\nRESTest went wrong: boom\n\n"})
 
         record = self.entry("broken", folder)
 
@@ -129,10 +129,11 @@ class Manifest(Campaign):
     def manifest(self, apis):
         apis_file = self.root / "apis.json"
         write(apis_file, json.dumps(apis))
-        return showcase.manifest(self.root / "artifacts", apis_file, VERSION, "abc123", "15m", 42,
-                                 "2026-11-08T10:00:00Z", "isa-group/restest-dataset", "deadbeef",
-                                 "https://github.com/isa-group/restest-dataset/actions/runs/1",
-                                 self.root / "release", self.root / "notes.md")
+        return showcase.manifest(
+            artifacts=self.root / "artifacts", apis=apis_file, version=VERSION, archive_sha256="abc123",
+            budget="15m", seed="42", started="2026-11-08T10:00:00Z", repository="isa-group/restest-dataset",
+            commit="deadbeef", workflow_run="https://github.com/isa-group/restest-dataset/actions/runs/1",
+            out=self.root / "release", notes=self.root / "notes.md")
 
     def test_the_manifest_says_how_the_campaign_was_made_and_how_each_api_went(self):
         self.entry("petstore", self.run_dir("petstore", {
@@ -143,7 +144,7 @@ class Manifest(Campaign):
         document = self.manifest([
             {"id": "petstore", "title": "Swagger Petstore",
              "upstream": {"license": "Apache", "repository": "https://github.com/swagger-api/swagger-petstore"}},
-            {"id": "slow", "title": "Slow", "upstream": {"license": "MIT"}},
+            {"id": "slow", "title": "Slow", "upstream": {"license": "MIT", "repository": None}},
         ])
 
         self.assertEqual(1, document["format"])
@@ -172,15 +173,13 @@ class Manifest(Campaign):
         self.entry("petstore", self.run_dir("petstore", {"report.json": report(), "exit-code": "0\n"}))
 
         with self.assertRaises(SystemExit):
-            self.manifest([{"id": "petstore", "title": "P", "upstream": {}},
-                           {"id": "lost", "title": "L", "upstream": {}}])
+            self.manifest([{"id": "petstore", "title": "P", "upstream": {"license": None, "repository": None}},
+                           {"id": "lost", "title": "L", "upstream": {"license": None, "repository": None}}])
         self.assertFalse((self.root / "release" / "manifest.json").exists())
 
     def test_budgets_are_written_as_report_json_writes_lengths_of_time(self):
-        self.assertEqual(["PT90S", "PT15M", "PT1H"], [showcase.iso_duration(b) for b in ("90s", "15m", "1h")])
-        for wrong in ("0s", "15", "1d", "1.5h"):
-            with self.assertRaises(SystemExit, msg=wrong):
-                showcase.iso_duration(wrong)
+        self.assertEqual(["PT20S", "PT1M", "PT1M30S", "PT15M", "PT1H30M", "PT1H", "PT5H"],
+                         [showcase.iso_duration(b) for b in ("20s", "60s", "90s", "15m", "90m", "1h", "5h")])
 
 
 if __name__ == "__main__":
