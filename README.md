@@ -26,8 +26,8 @@ cd restest-dataset
 ./dataset up petclinic-rest                       # start one; prints its address when it answers
 ./dataset down petclinic-rest                     # stop it and throw its data away
 
-./dataset run suite:smoke --restest ~/Repositories/RESTest/restest --budget 60s
-./dataset run petclinic-rest kafka-rest --restest ~/Repositories/RESTest/restest \
+./dataset run suite:smoke --restest ../RESTest/restest --budget 60s
+./dataset run petclinic-rest kafka-rest --restest ../RESTest/restest \
     --budget 5m --runs 5 --out out/before-the-change
 ./dataset summary out/before-the-change           # one line per run, and summary.csv
 ```
@@ -39,7 +39,7 @@ the values). An API that does not start is noted in `start-failed.txt` and the c
 dataset commit. Anything after `--` is handed to `restest run` as it is:
 
 ```bash
-./dataset run suite:smoke --restest ~/Repositories/RESTest/restest -- --store --seed 42
+./dataset run suite:smoke --restest ../RESTest/restest -- --store --seed 42
 ```
 
 The images are pulled from Docker Hub the first time an API starts. Docker Hub allows few
@@ -286,8 +286,8 @@ theirs. Please cite them when you use these APIs:
 
 This repository's own files — the scripts, the compose files written here, the documentation — are
 under the [Apache License 2.0](LICENSE). The APIs are not: each is the work of its authors under its
-own licence, named in its entry and in the [catalogue](CATALOGUE.md), and several are marked
-"not-known license" by WFD. This repository does not contain their source code; their images are
-pulled from where their publishers put them. The documents, credentials and seed files copied from
-WFD are WFD's, under its licence. Check an API's licence before redistributing anything of it, and
-before this repository is made public.
+own licence. This repository does not contain their source code; their images are pulled from where
+their publishers put them, and the documents, credentials and seed files here are copied from WFD as
+WFD publishes them. [LICENCES.md](LICENCES.md) gives, for every API, its licence, what its
+repository says and what is copied here; seventeen have no licence that can be checked. An author
+who does not want their API here can open an issue, and it is removed.
