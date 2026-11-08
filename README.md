@@ -1,17 +1,19 @@
 # RESTest dataset
 
-Open-source REST APIs that run on one machine with Docker, for testing
-[RESTest](https://github.com/isa-group/RESTest): checking a change or a release on real APIs,
-comparing two versions of the tool, and, later, showing what it finds on the project's website.
+The 52 REST APIs in this repository are taken from the
+[Web Fuzzing Dataset](https://github.com/WebFuzzing/Dataset) (WFD). Choosing the applications, making
+them run in containers, gathering their seed data, writing their credentials and publishing their
+images is the work of WFD's maintainers, and the credit for it is theirs alone. Please cite them when
+you use these APIs: the [acknowledgements](#acknowledgements) say how.
+
+This repository only packages their APIs so that [RESTest](https://github.com/isa-group/RESTest) can
+be evaluated on them regularly: to check a change or a release on real APIs, to compare two versions
+of the tool, and to run the campaign of each released version whose results RESTest's website shows.
 
 Each API is a folder that starts on its own — no build, no account, nothing to install but Docker —
 with the OpenAPI document RESTest is given, pinned images so that the API under test is the same
 next month, and the credentials it needs when it has any. A small script starts an API, waits until
 it answers, runs RESTest against it, and removes it again so that every run starts from scratch.
-
-The first 52 APIs come from the [Web Fuzzing Dataset](#acknowledgements). Every one of them was
-started and tested for 20 seconds with RESTest 2.1.1-SNAPSHOT on 12 October 2026, on Apple silicon. More will be added as they
-are found, from other collections and from open-source projects directly.
 
 ## Quick start
 
