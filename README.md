@@ -16,7 +16,8 @@ are found, from other collections and from open-source projects directly.
 ## Quick start
 
 Docker with Compose v2 and Python 3.9 or later; nothing else. RESTest is whatever command runs it —
-a checkout's `./restest`, a release's `bin/restest`.
+a checkout's `./restest`, a release's `bin/restest`; the examples use a built checkout of RESTest
+beside this one, `../RESTest/restest`.
 
 ```bash
 git clone https://github.com/isa-group/restest-dataset
@@ -262,14 +263,17 @@ it starts and that RESTest gets past the door, and regenerate the catalogue:
 { printf '# Catalogue\n\nEvery API in the dataset, written by `./dataset list --markdown`. Do not edit by hand.\n\n'; ./dataset list --markdown; } > CATALOGUE.md
 ```
 
-The [catalogue](CATALOGUE.md) lists every API with its licence and where it comes from.
+The [catalogue](CATALOGUE.md) lists every API with its licence and where it comes from. Give the
+API its row in [LICENCES.md](LICENCES.md) too: its licence, what its repository says, and what is
+copied here.
 
 ## Acknowledgements
 
 Most of this dataset is the **Web Fuzzing Dataset (WFD)**, formerly EMB, built and maintained by
 Andrea Arcuri, Man Zhang, Omur Sahin and the other EvoMaster contributors:
 <https://github.com/WebFuzzing/Dataset>. They chose the applications, made them run in containers,
-wrote their seed data and credentials, and publish the images every API here starts from. This
+gathered their seed data, wrote their credentials, and publish the images every API here starts
+from. This
 repository adds a way to run them with RESTest and nothing else; the work of collecting them is
 theirs. Please cite them when you use these APIs:
 
@@ -284,10 +288,11 @@ theirs. Please cite them when you use these APIs:
 
 ## Licence
 
-This repository's own files — the scripts, the compose files written here, the documentation — are
-under the [Apache License 2.0](LICENSE). The APIs are not: each is the work of its authors under its
-own licence. This repository does not contain their source code; their images are pulled from where
-their publishers put them, and the documents, credentials and seed files here are copied from WFD as
-WFD publishes them. [LICENCES.md](LICENCES.md) gives, for every API, its licence, what its
-repository says and what is copied here; seventeen have no licence that can be checked. An author
-who does not want their API here can open an issue, and it is removed.
+This repository's own files — the scripts and the documentation — are under the
+[Apache License 2.0](LICENSE); each `compose.yaml` is made here from WFD's. The APIs are the work of
+their authors, under their own terms. This repository holds none of their application code: their
+images are pulled from where their publishers put them, and the documents, credentials and seed
+files here are copied from WFD as WFD publishes them, which for three APIs include the project's own
+database scripts. [LICENCES.md](LICENCES.md) gives, for every API, its licence, what its repository
+says and what is copied here; sixteen have no licence that can be checked. An author who does not
+want their API here can open an issue, and it is removed from the dataset.

@@ -4,6 +4,7 @@
 """
 
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -27,6 +28,18 @@ class Summary(unittest.TestCase):
 
             self.assertEqual(0, done.returncode, done.stderr)
             self.assertRegex(done.stdout, r"long\s+run-1\s+12\s+3")
+
+
+class Licences(unittest.TestCase):
+
+    def test_every_api_has_its_row_in_licences_md(self):
+        root = DATASET.parent
+        rows = set(re.findall(r"^\| \[`([^`]+)`\]\(apis/", (root / "LICENCES.md").read_text(encoding="utf-8"),
+                              re.MULTILINE))
+        apis = {p.parent.name for p in (root / "apis").glob("*/compose.yaml")}
+
+        self.assertEqual(set(), apis - rows, "APIs with no row in LICENCES.md")
+        self.assertEqual(set(), rows - apis, "rows in LICENCES.md for no API")
 
 
 if __name__ == "__main__":
