@@ -124,7 +124,8 @@ precedence, and `left-alone.txt` then says nothing was left alone.
 
 The dataset and the scripts that run it, nothing else. What a run produces — reports, logs, stored
 requests — goes into `out/` unless `--out` says otherwise, and `out/` is ignored by git: results
-are never committed here.
+are never committed here. The showcase's campaigns are kept as assets of this repository's releases,
+also never as commits.
 
 ## Suites
 
@@ -134,6 +135,105 @@ A suite is a text file in `suites/`, one API per line, `#` for comments.
 |---|---|
 | `smoke` | Two small APIs that start in seconds: does everything work at all |
 | `all` | Every API (built in, no file) |
+
+## The showcase
+
+What RESTest finds on these APIs is shown on its website, one campaign for each released version. A
+campaign is the workflow [`showcase.yml`](.github/workflows/showcase.yml): it runs a released RESTest
+against every API, each started from scratch in a job of its own on GitHub's runners, and ends in a
+draft release of this repository, `showcase-v<version>`. Someone who can write here launches it from
+`main` once the version is published:
+
+```bash
+gh workflow run showcase.yml -f version=2.5.0 -f budget=15m
+gh run watch
+```
+
+`budget` is how long RESTest tests each API, at most `5h`. `seed` can be given too; left out, one is
+chosen and every API is tested with it. Each job downloads RESTest's archive from its release and
+checks it against the release's checksums, pulls the API's images, and runs `./dataset run <api>`,
+with the API's credentials and its operations left alone, as on a laptop.
+
+What bounds a campaign is GitHub's:
+
+- A job is stopped after six hours, with nothing kept. The step that runs RESTest is given the budget
+  and half an hour more, to start the API, log in and write the reports, so the budget is at most five
+  hours.
+- GitHub's free plan runs 20 jobs at once across the whole organisation. Ten APIs are tested at a time,
+  and the other ten places are left to the builds of the organisation's other repositories.
+- A public repository's runners have 4 CPUs and 16 GB of memory. The manifest says what the campaign's
+  first job had, and how much disk it had left.
+- Some APIs write a hundred megabytes of log a minute while they are tested. Each container's log is
+  kept under 200 MB, so that the runner's disk does not fill.
+
+The draft holds `manifest.json`, and `<api>.report.json` and `<api>.report.html` for each API that
+has a report. Only those who can write here see it, until someone has looked at it and published it:
+
+```bash
+gh release edit showcase-v2.5.0 --draft=false
+```
+
+A second campaign of a version stops at its first step while a release of it exists, draft or
+published: a published campaign is never replaced.
+
+**When a job fails.** The release is drafted whatever became of each API, and the manifest says
+what that was. A job goes red when something kept RESTest from testing its API: its images could not
+be pulled after three tries, RESTest ended without a report or ran out of time, or a step before it
+failed, such as downloading the archive or logging in to Docker Hub. An API that does not answer in
+time leaves its job green: that is what the API did. To try the red ones again with the same seed,
+delete the draft (`gh release delete showcase-v2.5.0`) and choose "Re-run failed jobs" on the run:
+the other APIs' results are kept, and the draft is made again. To try a green one again, delete the
+draft and choose "Re-run this job" on that API's job. A report written by another version than the
+campaign's stops its job and the draft, since it means the wrong archive was tested.
+
+**What a run keeps besides the release.** For 30 days, each job keeps, as an artifact of the run:
+its entry for the manifest, both reports, RESTest's screen output and the last 2,000 lines of the
+API's own log. None of it is secret. The credentials are those of this repository's `auth.yaml`
+files, or come from logging in to containers thrown away with the job. RESTest's reports show a
+key it was handed as a mask. `credentials.txt` never holds values.
+
+**Docker Hub.** The images are pulled without an account. If Docker Hub's limit on such pulls gets in
+the way, give the repository the secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`, a read-only
+access token: each job then logs in to pull its API's images, and logs out before the API starts, so
+that the token is in no file while the API and RESTest run.
+
+**The manifest** is what the website reads:
+
+| Key | What it says |
+|---|---|
+| `format` | `1`. It goes up when a key changes its meaning or goes away; a new key leaves it as it is |
+| `restest` | The version, its archive and the archive's SHA-256 |
+| `budget` | Each API's, written as `report.json` writes lengths of time: `PT15M` |
+| `seed` | As text, because a seed can have more digits than a JSON reader keeps exactly |
+| `runner` | The first job's machine: its label, image, CPUs, memory and free disk in GiB once its API was done, and the Java RESTest ran on |
+| `startedAt`, `finishedAt` | When the campaign started, and when its manifest was written |
+| `dataset` | This repository, and the commit the campaign ran |
+| `workflowRun` | The run, with each job's log and artifact |
+| `apis` | One entry for each API, in the order `./dataset list` gives |
+
+and each entry of `apis`:
+
+| Key | What it says |
+|---|---|
+| `id`, `title`, `license`, `upstream` | From the API's `x-dataset` |
+| `outcome` | `ran`; `apiDidNotStart`, the API did not answer in time; `imagesNotPulled`, its images could not be pulled; `noReport`, RESTest left no report |
+| `reason` | Why, in one line, when it did not run |
+| `exitCode` | RESTest's exit code, when it ended |
+| `credentials`, `leftAlone` | The line of `credentials.txt` and of `left-alone.txt`, as it is |
+| `startedAt`, `finishedAt` | When its job started and ended |
+| `report`, `page` | The names of its `report.json` and `report.html` in the release, or `null` |
+
+There are no figures in the manifest: each `report.json` holds them.
+
+**Running an API as a campaign did.** Anyone can repeat an API of a campaign on their own machine,
+with that version's archive from RESTest's releases and the manifest's budget and seed:
+
+```bash
+./dataset run petclinic-rest --restest restest-2.5.0/bin/restest --budget 15m -- --seed 12345
+```
+
+The run will be similar rather than the same: what RESTest sends depends on what the API answers,
+and the machine is another.
 
 ## Adding an API
 

@@ -1,0 +1,290 @@
+# A showcase campaign: a released RESTest against every API of the dataset, each started from scratch
+# in a job of its own on GitHub's runners. It ends in a draft release, showcase-v<version>, holding a
+# manifest and each API's report.json and report.html; a person looks at the draft and publishes it.
+# The README's "The showcase" says how to launch it, how to recover from a failed job, and what the
+# manifest holds.
+name: Showcase campaign
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The released RESTest to run, such as 2.5.0
+        required: true
+        type: string
+      budget:
+        description: How long RESTest tests each API, such as 15m; at most 5h
+        required: true
+        type: string
+      seed:
+        description: The seed every API is tested with; left empty, one is chosen and kept in the manifest
+        required: false
+        type: string
+        default: ""
+
+# One campaign of a version at a time: a second launch waits for the first, then stops at its first step.
+concurrency:
+  group: showcase-${{ inputs.version }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  VERSION: ${{ inputs.version }}
+  BUDGET: ${{ inputs.budget }}
+
+jobs:
+  plan:
+    name: Plan the campaign
+    runs-on: ubuntu-24.04
+    permissions:
+      # A draft is shown only to a token that may write. Nothing in this job writes.
+      contents: write # to see whether a release of this version exists, drafts included
+    outputs:
+      apis: ${{ steps.apis.outputs.apis }}
+      seed: ${{ steps.inputs.outputs.seed }}
+      minutes: ${{ steps.inputs.outputs.minutes }}
+      started: ${{ steps.inputs.outputs.started }}
+      sha256: ${{ steps.archive.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the inputs
+        id: inputs
+        env:
+          SEED: ${{ inputs.seed }}
+        run: |
+          if [[ $GITHUB_REF != refs/heads/main ]]; then
+            echo "::error::A campaign runs from main, so that its release is made from a commit of main"
+            exit 1
+          fi
+          if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::The version is a released RESTest's, such as 2.5.0"
+            exit 1
+          fi
+          if [[ ! $BUDGET =~ ^([1-9][0-9]{0,4})([smh])$ ]]; then
+            echo "::error::The budget is a number and s, m or h, such as 90s, 15m or 1h"
+            exit 1
+          fi
+          case ${BASH_REMATCH[2]} in
+            s) seconds=${BASH_REMATCH[1]} ;;
+            m) seconds=$((BASH_REMATCH[1] * 60)) ;;
+            h) seconds=$((BASH_REMATCH[1] * 3600)) ;;
+          esac
+          # The step that runs RESTest is given the budget and half an hour more, to start the API, log
+          # in and write the reports; a job of GitHub's is stopped after six hours with nothing kept.
+          if ((seconds > 5 * 3600)); then
+            echo "::error::The budget is at most 5h, so that a job ends within GitHub's six hours"
+            exit 1
+          fi
+          if [[ -z $SEED ]]; then
+            SEED=$(python3 -c 'import secrets; print(secrets.randbelow(10 ** 17))')
+          elif [[ ! $SEED =~ ^[0-9]{1,18}$ ]]; then
+            echo "::error::The seed is a whole number of at most 18 digits"
+            exit 1
+          fi
+          {
+            echo "seed=$SEED"
+            echo "minutes=$(((seconds + 59) / 60 + 30))"
+            echo "started=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Stop if this version has a campaign already
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if said=$(gh release view "showcase-v$VERSION" 2>&1 > /dev/null); then
+            echo "::error::showcase-v$VERSION exists already, as a draft or published. Delete the draft to run the campaign again; a published campaign is never replaced"
+            exit 1
+          elif [[ $said != *"release not found"* ]]; then
+            echo "$said"
+            echo "::error::Could not tell whether showcase-v$VERSION exists"
+            exit 1
+          fi
+
+      - name: Find the release of RESTest and its checksum
+        id: archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "v$VERSION" --repo isa-group/RESTest --pattern checksums_sha256.txt
+          sha256=$(awk -v file="restest-$VERSION.tgz" '$2 == file { print $1 }' checksums_sha256.txt)
+          if [[ ! $sha256 =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::RESTest $VERSION's checksums_sha256.txt names no restest-$VERSION.tgz"
+            exit 1
+          fi
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Test the script that writes the manifest
+        run: python3 -m unittest discover -s tools
+
+      - name: List the APIs
+        id: apis
+        run: |
+          ./dataset list --json > apis.json
+          echo "apis=$(jq -c '[.[].id]' apis.json)" >> "$GITHUB_OUTPUT"
+
+  run:
+    name: ${{ matrix.api }}
+    needs: plan
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      # GitHub's free plan runs 20 jobs at once across the whole organisation: half of them are left to
+      # the other repositories' builds.
+      max-parallel: 10
+      matrix:
+        api: ${{ fromJSON(needs.plan.outputs.apis) }}
+        runner: [ubuntu-24.04]
+    env:
+      API: ${{ matrix.api }}
+      RUNNER: ${{ matrix.runner }}
+      RUN: out/${{ matrix.api }}/run-1
+      RESTEST: restest/restest-${{ inputs.version }}/bin/restest
+      HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+    steps:
+      - name: Note when the job started
+        id: started
+        run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Download RESTest and check it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA256: ${{ needs.plan.outputs.sha256 }}
+        run: |
+          gh release download "v$VERSION" --repo isa-group/RESTest --pattern "restest-$VERSION.tgz"
+          echo "$SHA256  restest-$VERSION.tgz" | sha256sum --check
+          mkdir restest
+          tar -xzf "restest-$VERSION.tgz" -C restest
+
+      # Some APIs write a hundred megabytes of log a minute while they are tested, which Docker keeps on
+      # the runner's disk; within an hour that would fill it.
+      - name: Keep each container's log under 200 MB
+        run: |
+          config=/etc/docker/daemon.json
+          { if [[ -f $config ]]; then cat "$config"; else echo '{}'; fi; } |
+            jq '. + {"log-driver": "json-file", "log-opts": {"max-size": "200m", "max-file": "1"}}' > daemon.json
+          sudo mv daemon.json "$config"
+          sudo systemctl restart docker
+
+      # The secrets are in this step's environment alone, docker login reads the token from its input,
+      # and the job logs out once the images are pulled, before anything of the dataset runs.
+      - name: Log in to Docker Hub, when the repository has its secrets
+        if: env.HAS_DOCKERHUB == 'true'
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+
+      # Pulled apart from starting the API, so that an image the registry refuses is said to be that,
+      # and never that the API did not start.
+      - name: Pull the API's images
+        run: |
+          mkdir -p "$RUN"
+          for attempt in 1 2 3; do
+            if docker compose -f "apis/$API/compose.yaml" pull --quiet 2> pull.err; then
+              exit 0
+            fi
+            cat pull.err
+            if ((attempt < 3)); then
+              sleep $((attempt * 30))
+            fi
+          done
+          grep . pull.err | tail -n 1 > "$RUN/pull-failed.txt"
+          exit 1
+
+      - name: Log out of Docker Hub
+        if: ${{ always() && env.HAS_DOCKERHUB == 'true' }}
+        run: docker logout
+
+      # One API to a job, so ./dataset run fails exactly when the API started and RESTest left no
+      # report; an API that did not answer in time leaves the job green, as the README says.
+      - name: Test the API
+        timeout-minutes: ${{ fromJSON(needs.plan.outputs.minutes) }}
+        env:
+          SEED: ${{ needs.plan.outputs.seed }}
+        run: |
+          ./dataset run "$API" --restest "$PWD/$RESTEST" --budget "$BUDGET" --out out -- --seed "$SEED" 2>&1 |
+            tee out/dataset.log
+
+      - name: Keep what the run left
+        if: ${{ !cancelled() }}
+        env:
+          STARTED: ${{ steps.started.outputs.at }}
+        run: |
+          tools/showcase.py entry "$RUN" --api "$API" --version "$VERSION" --started "$STARTED" \
+            --runner "$RUNNER" --restest "$PWD/$RESTEST" --into upload
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: run-${{ matrix.api }}
+          path: upload/
+          retention-days: 30
+          # A job run again replaces what its failed attempt left.
+          overwrite: true
+          if-no-files-found: error
+
+  publish:
+    name: Draft the release
+    needs: [plan, run]
+    # Also when some APIs' jobs failed: the manifest says what became of each.
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # to draft the release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: run-*
+          path: artifacts
+
+      - name: Write the manifest
+        env:
+          SHA256: ${{ needs.plan.outputs.sha256 }}
+          SEED: ${{ needs.plan.outputs.seed }}
+          STARTED: ${{ needs.plan.outputs.started }}
+          WORKFLOW_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          ./dataset list --json > apis.json
+          tools/showcase.py manifest artifacts --apis apis.json --version "$VERSION" \
+            --archive-sha256 "$SHA256" --budget "$BUDGET" --seed "$SEED" --started "$STARTED" \
+            --repository "$GITHUB_REPOSITORY" --commit "$GITHUB_SHA" --workflow-run "$WORKFLOW_RUN" \
+            --out release --notes notes.md
+
+      # GitHub lets two drafts share a tag's name, so a draft left from an earlier attempt is not
+      # added to: it is deleted by hand first.
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if said=$(gh release view "showcase-v$VERSION" 2>&1 > /dev/null); then
+            echo "::error::showcase-v$VERSION exists already. Delete the draft, then run the failed jobs again"
+            exit 1
+          elif [[ $said != *"release not found"* ]]; then
+            echo "$said"
+            echo "::error::Could not tell whether showcase-v$VERSION exists"
+            exit 1
+          fi
+          gh release create "showcase-v$VERSION" release/* --draft --target "$GITHUB_SHA" \
+            --title "RESTest $VERSION on the dataset's APIs" --notes-file notes.md

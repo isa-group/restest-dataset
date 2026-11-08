@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Starts the dataset's APIs and runs RESTest against them.
 
-  ./dataset list [--suite NAME]
+  ./dataset list [--suite NAME] [--json]
   ./dataset up <api> [--timeout SECONDS]          start it, wait until it answers, print its address
   ./dataset down <api>                            stop it and throw its data away
   ./dataset run <api|suite:NAME>... --restest CMD [--budget 60s] [--runs N] [--out DIR] [--no-auth] [--all-operations]
@@ -544,6 +544,7 @@ def main():
     p = commands.add_parser("list", help="the APIs, or those of one suite")
     p.add_argument("--suite")
     p.add_argument("--markdown", action="store_true", help="as the table in CATALOGUE.md")
+    p.add_argument("--json", action="store_true", help="each API's x-dataset entry, as a JSON list")
 
     p = commands.add_parser("up", help="start an API and wait until it answers")
     p.add_argument("api")
@@ -568,14 +569,18 @@ def main():
     p.add_argument("out")
 
     args = parser.parse_args(argv)
-    if args.command == "list" and args.markdown:
-        catalogue(suite(args.suite) if args.suite else all_apis())
-    elif args.command == "list":
-        for api in (suite(args.suite) if args.suite else all_apis()):
-            entry = describe(api)
-            notes = [credentials_kind(api, entry)]
-            print(f"{api:24} {entry['title'][:36]:36} {entry['upstream']['license'][:26]:26} "
-                  f"{entry['origin']['dataset']:12} {', '.join(notes)}")
+    if args.command == "list":
+        apis = suite(args.suite or "all")
+        if args.markdown:
+            catalogue(apis)
+        elif args.json:
+            print(json.dumps([describe(api) for api in apis], indent=2))
+        else:
+            for api in apis:
+                entry = describe(api)
+                notes = [credentials_kind(api, entry)]
+                print(f"{api:24} {entry['title'][:36]:36} {entry['upstream']['license'][:26]:26} "
+                      f"{entry['origin']['dataset']:12} {', '.join(notes)}")
     elif args.command == "up":
         try:
             entry, base = up(args.api, args.timeout)
