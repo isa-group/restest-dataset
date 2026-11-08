@@ -216,7 +216,7 @@ and each entry of `apis`:
 | Key | What it says |
 |---|---|
 | `id`, `title`, `license`, `upstream` | From the API's `x-dataset` |
-| `outcome` | `ran`; `apiDidNotStart`, the API did not answer in time; `imagesNotPulled`, its images could not be pulled; `noReport`, RESTest left no report |
+| `outcome` | `ran`; `apiDidNotStart`, the API did not answer in time; `imagesNotPulled`, its images could not be pulled; `noReport`, RESTest left no report, or one that cannot be read |
 | `reason` | Why, in one line, when it did not run |
 | `exitCode` | RESTest's exit code, when it ended |
 | `credentials`, `leftAlone` | The line of `credentials.txt` and of `left-alone.txt`, as it is |

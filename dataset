@@ -465,11 +465,21 @@ def plan_without(restest, document, leave_alone):
             + "operations:\n  only: " + json.dumps(names) + "\n")
 
 
+def read_report(path):
+    """A run's report.json. RESTest writes the values it sent as they were, so a body can hold an
+    integer of thousands of digits; such a number is kept as its text, since Python 3.11 and later
+    refuse to turn it into one."""
+    return json.loads(path.read_text(encoding="utf-8"), parse_int=lambda s: int(s) if len(s) < 4300 else s)
+
+
 def line_of(run_dir):
     report = run_dir / "report.json"
     if not report.is_file():
         return "no report.json"
-    totals = json.loads(report.read_text(encoding="utf-8")).get("totals", {})
+    try:
+        totals = read_report(report).get("totals", {})
+    except ValueError as error:
+        return f"report.json cannot be read: {error}"
     return (f"{totals.get('requests')} requests, {totals.get('operations')} operations, "
             f"{totals.get('faults')} faults of {totals.get('faultKinds')} kinds")
 
@@ -478,7 +488,12 @@ def summary(out):
     out = Path(out)
     rows = []
     for report in sorted(out.glob("*/run-*/report.json")):
-        data = json.loads(report.read_text(encoding="utf-8"))
+        try:
+            data = read_report(report)
+        except ValueError:
+            rows.append({"api": report.parent.parent.name, "run": report.parent.name, "restest": None,
+                         "requests": "report.json cannot be read"})
+            continue
         totals = data.get("totals", {})
         by_class = (data.get("replies") or {}).get("byClass") or {}
         errors = data.get("serverErrors") or {}

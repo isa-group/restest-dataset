@@ -51,6 +51,12 @@ def last_line(path):
     return lines[-1].strip() if lines else None
 
 
+def read_report(path):
+    """A run's report.json, with an integer of thousands of digits kept as its text, as ./dataset
+    reads it: Python 3.11 and later refuse to turn such a number into one."""
+    return json.loads(path.read_text(encoding="utf-8"), parse_int=lambda s: int(s) if len(s) < 4300 else s)
+
+
 def tail(path, count):
     with open(path, "rb") as f:
         return [line.decode("utf-8", errors="replace").rstrip("\n")
@@ -65,7 +71,10 @@ def outcome_of(run_dir, version, exit_code):
         return "imagesNotPulled", first_line(run_dir / "pull-failed.txt")
     report = run_dir / "report.json"
     if report.is_file():
-        written_by = (json.loads(report.read_text(encoding="utf-8")).get("tool") or {}).get("version")
+        try:
+            written_by = (read_report(report).get("tool") or {}).get("version")
+        except ValueError as error:
+            return "noReport", f"RESTest's report.json cannot be read: {error}"
         if written_by != version:
             fail(f"{report} was written by RESTest {written_by}, and the campaign is of {version}")
         return "ran", None
@@ -111,7 +120,7 @@ def entry(*, run_dir, api, version, started, runner, restest, into):
     code = first_line(run_dir / "exit-code")
     exit_code = int(code) if code else None
     outcome, reason = outcome_of(run_dir, version, exit_code)
-    for name in ("report.json", "report.html", "restest.log"):
+    for name in ("report.json", "report.html", "restest.log") if outcome == "ran" else ("restest.log",):
         if (run_dir / name).is_file():
             shutil.copyfile(run_dir / name, into / name)
     if (run_dir / "api.log").is_file():
