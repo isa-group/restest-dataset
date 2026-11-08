@@ -60,6 +60,12 @@ LEAVE_ALONE = {
     ],
 }
 
+# Licences WFD's README does not know, as the project's own repository states them (checked on
+# 8 November 2026).
+LICENCES = {
+    "session-service": "Apache-2.0",
+}
+
 # Credentials files whose users the published image refuses: handing them over would make the run
 # worse than giving none, so they are kept, and not handed over.
 AUTH_REFUSED = {
@@ -326,7 +332,7 @@ def import_api(name, readme, urls, commit):
         },
         "upstream": {
             "repository": entry.get("repository"),
-            "license": entry.get("license", "not-known license"),
+            "license": LICENCES.get(name, entry.get("license", "not-known license")),
         },
         "language": "jvm",
         "service": sut_name,

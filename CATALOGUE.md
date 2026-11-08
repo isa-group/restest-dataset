@@ -43,7 +43,7 @@ Every API in the dataset, written by `./dataset list --markdown`. Do not edit by
 | [`rest-scs`](apis/rest-scs/compose.yaml) | SCS | not-known license | wfd |  |  |
 | [`restcountries`](apis/restcountries/compose.yaml) | Restcountries | MPL | wfd | <https://github.com/apilayer/restcountries> |  |
 | [`scout-api`](apis/scout-api/compose.yaml) | Scout-API | MIT | wfd | <https://github.com/mikaelsvensson/scout-api> | fixed |
-| [`session-service`](apis/session-service/compose.yaml) | Session Service | not-known license | wfd | <https://github.com/cBioPortal/session-service> |  |
+| [`session-service`](apis/session-service/compose.yaml) | Session Service | Apache-2.0 | wfd | <https://github.com/cBioPortal/session-service> |  |
 | [`spring-actuator-demo`](apis/spring-actuator-demo/compose.yaml) | Spring-actuator-demo | not-known license | wfd | <https://github.com/callicoder/spring-boot-actuator-demo> | fixed |
 | [`spring-batch-rest`](apis/spring-batch-rest/compose.yaml) | Spring-batch-rest | Apache | wfd | <https://github.com/chrisgleissner/spring-batch-rest> |  |
 | [`spring-ecommerce`](apis/spring-ecommerce/compose.yaml) | Spring ECommerce | not-known license | wfd | <https://github.com/SaiUpadhyayula/SpringAngularEcommerce> | login, token |

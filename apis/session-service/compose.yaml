@@ -11,7 +11,7 @@ x-dataset:
     path: jdk_8_maven/cs/rest/original/session-service
   upstream:
     repository: https://github.com/cBioPortal/session-service
-    license: not-known license
+    license: Apache-2.0
   language: jvm
   service: sut-session-service
   port: 8080
