@@ -12,10 +12,6 @@ on:
         description: The released RESTest to run, such as 2.5.0
         required: true
         type: string
-      budget:
-        description: How long RESTest tests each API, such as 15m; at most 5h
-        required: true
-        type: string
       seed:
         description: The seed every API is tested with; left empty, one is chosen and kept in the manifest
         required: false
@@ -36,7 +32,9 @@ defaults:
 
 env:
   VERSION: ${{ inputs.version }}
-  BUDGET: ${{ inputs.budget }}
+  # How long RESTest tests each API: the same for every campaign, so that versions are compared on the same
+  # budget, and changed only in a pull request.
+  BUDGET: 1m
 
 jobs:
   plan:

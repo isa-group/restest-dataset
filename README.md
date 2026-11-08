@@ -148,20 +148,21 @@ draft release of this repository, `showcase-v<version>`. Someone who can write h
 `main` once the version is published:
 
 ```bash
-gh workflow run showcase.yml -f version=2.5.0 -f budget=15m
+gh workflow run showcase.yml -f version=2.5.0
 gh run watch
 ```
 
-`budget` is how long RESTest tests each API, at most `5h`. `seed` can be given too; left out, one is
-chosen and every API is tested with it. Each job downloads RESTest's archive from its release and
+RESTest tests each API for one minute, the budget written in the workflow: every campaign has the same,
+so that two versions are compared on it, and changing it is a pull request. `seed` can be given too; left
+out, one is chosen and every API is tested with it. Each job downloads RESTest's archive from its release and
 checks it against the release's checksums, pulls the API's images, and runs `./dataset run <api>`,
 with the API's credentials and its operations left alone, as on a laptop.
 
 What bounds a campaign is GitHub's:
 
 - A job is stopped after six hours, with nothing kept. The step that runs RESTest is given the budget
-  and half an hour more, to start the API, log in and write the reports, so the budget is at most five
-  hours.
+  and half an hour more, to start the API, log in and write the reports, so a budget could be at most
+  five hours. At one minute, a campaign of the 52 APIs took 11 minutes, each job 78 to 172 seconds.
 - GitHub's free plan runs 20 jobs at once across the whole organisation. Ten APIs are tested at a time,
   and the other ten places are left to the builds of the organisation's other repositories.
 - A public repository's runners have 4 CPUs and 16 GB of memory. The manifest says what the campaign's
@@ -206,7 +207,7 @@ that the token is in no file while the API and RESTest run.
 |---|---|
 | `format` | `1`. It goes up when a key changes its meaning or goes away; a new key leaves it as it is |
 | `restest` | The version, its archive and the archive's SHA-256 |
-| `budget` | Each API's, written as `report.json` writes lengths of time: `PT15M` |
+| `budget` | Each API's, written as `report.json` writes lengths of time: `PT1M` |
 | `seed` | As text, because a seed can have more digits than a JSON reader keeps exactly |
 | `runner` | The first job's machine: its label, image, CPUs, memory and free disk in GiB once its API was done, and the Java RESTest ran on |
 | `startedAt`, `finishedAt` | When the campaign started, and when its manifest was written |
@@ -232,7 +233,7 @@ There are no figures in the manifest: each `report.json` holds them.
 with that version's archive from RESTest's releases and the manifest's budget and seed:
 
 ```bash
-./dataset run petclinic-rest --restest restest-2.5.0/bin/restest --budget 15m -- --seed 12345
+./dataset run petclinic-rest --restest restest-2.5.0/bin/restest --budget 1m -- --seed 12345
 ```
 
 The run will be similar rather than the same: what RESTest sends depends on what the API answers,
