@@ -24,6 +24,11 @@ def report(version=VERSION):
     return json.dumps({"tool": {"version": version}})
 
 
+# RESTest writes the values it sent as they were: a body can hold an integer of thousands of digits,
+# which Python 3.11 and later refuse to read by default.
+LONG_NUMBER = "1" * 10000
+
+
 class Campaign(unittest.TestCase):
 
     def setUp(self):
@@ -135,6 +140,28 @@ class Entry(Campaign):
 
         with self.assertRaises(SystemExit):
             self.entry("other", folder)
+
+    def test_a_report_holding_a_number_too_long_for_python_is_read_all_the_same(self):
+        folder = self.run_dir("long", {
+            "report.json": '{"tool": {"version": "2.4.0"}, "findings": [{"body": {"value": {"n": %s}}}]}'
+                           % LONG_NUMBER,
+            "report.html": "<html></html>", "exit-code": "1\n"})
+
+        record = self.entry("long", folder)
+
+        self.assertEqual(("ran", None, 1), (record["outcome"], record["reason"], record["exitCode"]))
+
+    def test_a_report_that_cannot_be_read_counts_as_no_report_and_is_not_kept(self):
+        folder = self.run_dir("cut", {
+            "report.json": '{"tool": {"version": "2.4.0"}, "findings": [', "report.html": "<html>",
+            "exit-code": "130\n", "restest.log": "stopped\n"})
+
+        record = self.entry("cut", folder)
+
+        self.assertEqual("noReport", record["outcome"])
+        self.assertTrue(record["reason"].startswith("RESTest's report.json cannot be read"), record["reason"])
+        kept = sorted(p.name for p in (self.root / "artifacts" / "run-cut").iterdir())
+        self.assertEqual(["entry.json", "restest.log"], kept)
 
 
 class Manifest(Campaign):
